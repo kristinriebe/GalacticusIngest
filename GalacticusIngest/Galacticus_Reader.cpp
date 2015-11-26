@@ -1,6 +1,5 @@
 /*  
- *  Copyright (c) 2012, Adrian M. Partl <apartl@aip.de>, 
- *                      Kristin Riebe <kriebe@aip.de>,
+ *  Copyright (c) 2015, Kristin Riebe <kriebe@aip.de>,
  *                      eScience team AIP Potsdam
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,8 +23,17 @@
 #include <math.h>   // sqrt, pow
 #include "galacticusingest_error.h"
 #include <list>
+//#include <boost/filesystem.hpp>
+//#include <boost/serialization/string.hpp> // needed on erebos for conversion from boost-path to string()
+#include <boost/regex.hpp> // for string regex match/replace to remove redshift from dataSetNames
 
 #include "Galacticus_Reader.h"
+
+//using namespace boost::filesystem;
+
+//#include <boost/chrono.hpp>
+#include <cmath>
+
 
 namespace Galacticus {
     GalacticusReader::GalacticusReader() {
@@ -35,13 +43,28 @@ namespace Galacticus {
         currRow = 0;
     }
     
-    GalacticusReader::GalacticusReader(std::string newFileName, int newSnapnum, int newStartRow, int newMaxRows, double newIdfactor) {          
+    GalacticusReader::GalacticusReader(std::string newFileName, int newJobNum, int newFileNum, int newSnapnum, int newStartRow, int newMaxRows) {          
         // this->box = box;     
         snapnum = newSnapnum;
         startRow = newStartRow;
         maxRows = newMaxRows;
-        idfactor = newIdfactor;
+
+        fileName = newFileName;
         
+        // strip path from file name
+        //boost::filesystem::path p(fileName);
+        //dataFileBaseName = p.filename().string(); // or use stem() for omitting extension
+        
+        // get job number and file number from file name?
+        // for this dataset, files are named like this: job0/the_trees_0_1000000_0_results.hdf5
+        // and job1/the_trees_1000000_2000000_9_results.hdf5
+        // => jobNum: strip "the_trees_", then everything beyond "_"; 
+        // => fileNum: strip _results.hdf5, everthing before "_"
+        // Welll ... just let the user provide these numbers ...
+
+        jobNum = newJobNum;
+        fileNum = newFileNum;
+
         currRow = 0;
         
         //numBytesPerRow = 2*sizeof(int)+28*sizeof(float)+6*sizeof(int)+2*sizeof(int); // 36 values in total; + two fortran-binary-specific intermediate numbers
@@ -76,15 +99,15 @@ namespace Galacticus {
     
     void GalacticusReader::openFile(string newFileName) {
         // open file as hdf5-file
-        H5std_string fileName;
-        fileName = (H5std_string) newFileName;
+        H5std_string h5fileName;
+        h5fileName = (H5std_string) newFileName;
 
         if (fp) {
             fp->close();
             delete fp;
         }
 
-        fp = new H5File(fileName, H5F_ACC_RDONLY); // allocates properly
+        fp = new H5File(h5fileName, H5F_ACC_RDONLY); // allocates properly
         
         if (!fp) { 
             GalacticusIngest_error("GalacticusReader: Error in opening file.\n");
@@ -196,7 +219,7 @@ namespace Galacticus {
     }
 */            
 
-    std::vector<string> GalacticusReader::getDataSetNames() {
+    vector<string> GalacticusReader::getDataSetNames() {
         return dataSetNames;
 
     }
@@ -205,7 +228,7 @@ namespace Galacticus {
         //assert(fileStream.is_open());
 
         DataBlock b;
-        std::string name;
+        string name;
 
         // get one line from already read datasets (using readNextBlock)
 
@@ -219,7 +242,7 @@ namespace Galacticus {
         } else if (countInBlock == nvalues-1) {
             // end of data block/start of new one is reached!
             // => read next datablocks (for next output number)
-            cout << "Read next datablock!" << endl; 
+            //cout << "Read next datablock!" << endl; 
             ioutput = ioutput + 1;
             nvalues = readNextBlock(ioutput);
             countInBlock = 0;
@@ -228,10 +251,10 @@ namespace Galacticus {
         }
 
         // STOP WHEN TESTING
-        if (ioutput == 5) {
+        /*if (ioutput == 5) {
             cout << "Stopping for now." << endl;
             abort();
-        }
+        }*/
 
         currRow++;
         counter++;
@@ -262,10 +285,7 @@ namespace Galacticus {
         //char ds[1000];
 
         // first get names of all DataSets in nodeData group and their item size
-        //std::string ...
-        //long numOutputs = 79;
-        //int i=79;
-        
+
         if (ioutput >= numOutputs) {
             cout << "ioutput too large!" << endl;
             abort(); 
@@ -281,15 +301,44 @@ namespace Galacticus {
         Group group(fp->openGroup(outputname));
 
         hsize_t len = group.getNumObjs();
-        cout << "number of output groups: " << len << endl; // works!!
+        //cout << "number of output groups: " << len << endl; // works!!
 
 
-        cout << "Iterating over Datasets in the group ... " << endl;
+        //cout << "Iterating over Datasets in the group ... " << endl;
         //H5L_iterate_t
-        //std::vector<string> dsnames;
-        dataSetNames.clear(); // actually, the names should be exactly the same as for the group before!!
+        //vector<string> dsnames;
+        dataSetNames.clear(); // actually, the names should be exactly the same as for the group before!! --> check this???
         int idx2  = H5Literate(group.getId(), H5_INDEX_NAME, H5_ITER_INC, NULL, file_info, &dataSetNames);
         
+        // cleanup the dataSetNames
+        // i.e. remove redshift, if it is included in the name, 
+        // e.g. spheroidLuminositiesStellar:SDSS_g:observed:z6.0000
+        // or spheroidLuminositiesStellar:SDSS_g:observed:z6.0000:dustAtlas
+        //size_t found = str.find(str2);
+        //if (found!=std::string::npos)
+        //std::cout << "first 'needle' found at: " << found << '\n';
+        //char *piece = NULL;
+        //char namechar[1024] = "";
+        
+        /*dataSetMatchNames.clear();
+        dataSetMatchNames = dataSetNames; 
+        for (int m=0; m<dataSetNames.size(); m++) {
+            //redshift = 
+            //size_t found = dataSetNames[m].find(":z");
+            // if (found!=std::string::npos) cout << found << endl;
+
+            string newtext = "";
+            //boost::regex re(":z[:digit:]+\.[:digit:]*");
+            boost::regex re(":z[0-9.]*");
+            //cout << "before: " << dataSetNames[m] << endl;
+
+            string result = boost::regex_replace(dataSetNames[m], re, newtext);
+            dataSetMatchNames[m] = result;
+            // should store it as key-value for easy access to datasets by match name!
+            //cout << "after:  " << dataSetMatchNames[m] << endl;
+        }
+        */
+
         // print some of the field names:
         //for (int m=0; m<dataSetNames.size(); m++) {
         //    cout << dataSetNames[m] << endl;
@@ -298,14 +347,13 @@ namespace Galacticus {
 
 
         // read each desired data set, use corresponding read routine for different types
-        std::string dsname;
+        string dsname;
 
         //dataSetNames.push_back("blackHoleCount");
         //dataSetNames.push_back("inclination");
 
-        std::string s;
+        string s;
 
-        //int numDataSets = 5; // TESTRUN
         int numDataSets = dataSetNames.size();
         //cout << "numDataSets: " << numDataSets << endl;
         
@@ -540,8 +588,11 @@ namespace Galacticus {
         //apply conversion
         //applyConversions(thisItem, result);
         
-        //cout << "Name, value: " << thisItem->getDataObjName() << ": " << *(double*) result << ", long: " << *(long*) result << endl;
-        
+        /*cout << "Name, value: " << thisItem->getDataObjName() << ": " << *(double*) result << ", long: " << *(long*) result << endl;
+        if (thisItem->getDataObjName() == "dataFile") {
+            cout << "Name, value: " << thisItem->getDataObjName() << ": " << *(char**) result << endl;
+            //abort();
+        } */   
 
         return 0;
     }
@@ -558,20 +609,20 @@ namespace Galacticus {
         // go through all data items and assign the correct column numbers for the DB columns, 
         // maybe depending on a read schema-file:
         
-        //cout << "getDataItem: " << thisItem->getDataObjName() << endl;
-
-        //cout << "datablocks.size: " << datablocks.size() << endl;
+        //cout << "dataobjname: " << thisItem->getDataObjName() << endl;
 
         isNull = false;
 
         DataBlock b;
-        std::string name;
-        //stream = std::stringstream();
-
+        string name;
+        
+        string newtext = "";
+        boost::regex re(":z[0-9.]*");
+            
         // loop through all fields for one row
         for (int j=0; j<datablocks.size(); j++) {
             
-            b = datablocks[j]; // block for current column (or field), it's ll of the same type
+            b = datablocks[j]; // block for current column (or field), it's all of the same type
             if (countInBlock >= b.nvalues) {
                 cout << "countInBlock is too large! (" << countInBlock << " >= " << b.nvalues << ")" << endl;
                 abort();
@@ -580,11 +631,32 @@ namespace Galacticus {
             //cout << "sizes in b: " << b.longval.size() << ", " << b.doubleval.size() << endl;
             // strip output etc. from name, i.e. use only 
             // last part of the name-string, after last '/'
-            std::size_t found = b.name.find_last_of("/");
+            //boost::chrono::system_clock::time_point start = boost::chrono::system_clock::now();
+            
+            size_t found = b.name.find_last_of("/");
             name = b.name.substr(found+1);
+            
+            //boost::chrono::duration<double> sec = boost::chrono::system_clock::now() - start;
+            
+            // use name with redshift removed:            
+            string matchname = boost::regex_replace(name, re, newtext);
+            name = matchname;
+            //name = dataSetMatchNames[j];
+
+            //boost::chrono::duration<double> sec2 = boost::chrono::system_clock::now() - start;
+            
+            //cout << "1 took " << sec.count() << " seconds\n";
+            //cout << "1+2 took " << sec2.count() << " seconds\n";
+    
 
             if (thisItem->getDataObjName().compare(name) == 0) {
                 if (b.longval) {
+
+                    //if (thisItem->getColumnDBType() == DBT_SMALLINT) {
+                    //    cout << "Found a small int!!!" << endl;
+                    //    abort();
+                    //}
+
                     *(long*)(result) = b.longval[countInBlock];
                     return isNull;
                 } else if (b.doubleval) {
@@ -601,7 +673,7 @@ namespace Galacticus {
         //cout << "ioutput: " << ioutput << endl;
         if (thisItem->getDataObjName().compare("snapnum") == 0) {
             //cout << "ioutput: " << ioutput << endl;
-            *(long*)(result) = ioutput;
+            *(int*)(result) = ioutput;
             return isNull;
         }
 
@@ -610,37 +682,58 @@ namespace Galacticus {
             return isNull;
         }
 
-        if (thisItem->getDataObjName().compare("NInOutput") == 0) {
-            *(long*)(result) = ioutput * idfactor + countInBlock;
+        if (thisItem->getDataObjName().compare("NInFileSnapnum") == 0) {
+            *(long*)(result) = countInBlock;
+            //result = (void *) countInBlock;
+            return isNull;
+        }
+        
+        if (thisItem->getDataObjName().compare("dataFile") == 0) {
+
+            //*(char**)(result) = dataFileBaseName; 
+            // If I do it this way (with string to char conversion already done in constructor), 
+            // then the free() at some later step fails (in DBIngestor, Converter.cpp, free(result)?).
+            // Thus allocate memory here and copy (as done in HelloWorld-example):
+            
+            //printf("datafile!\n");
+            char *charArray = (char*) malloc(dataFileBaseName.size()+1);
+            strcpy(charArray, dataFileBaseName.c_str());
+            //*(char**)(result) = charArray;
+
+            // still have problems with segmentation faults!
+
             return isNull;
         }
 
-        //if (thisItem->getDataObjName().compare("filenum") == 0) {
-        //    *(double*)(result) = ioutput * idfactor + countInBlock;
-        //    return isNull;
-        //}
-
-        //if (thisItem->getDataObjName().compare("nodeId") == 0) {
-        //    *(double*)(result) = ioutput * idfactor + countInBlock;
-        //    return isNull;
-        //}
-
-/*        else if (thisItem->getDataObjName().compare("Col3") == 0) {
-            //position may be negative for some reason, shift to box-range
-            rc1 = PERIODICLEFT(rc1,box);
-           x = rc1;
-            *(float*)(result) = x;
-        } else if (thisItem->getDataObjName().compare("Col4") == 0) {
-            //position may be negative for some reason, shift to box-range
-            rc2 = PERIODICLEFT(rc2,box);
-            y = rc2;
-            *(float*)(result) = y;
-
-        } else {
-            printf("Something went wrong...\n");
-            exit(EXIT_FAILURE);
+        if (thisItem->getDataObjName().compare("jobNum") == 0) {
+            *(int*) result = jobNum;
+            return isNull;
         }
-*/
+
+        if (thisItem->getDataObjName().compare("fileNum") == 0) {
+            *(int*) result = fileNum;
+            return isNull;
+        }
+
+        
+        /* if (thisItem->getDataObjName().compare("ix") == 0) {
+            *(long*)(result) = countInBlock;
+            return isNull;
+        } */ // --> do it on the database side; 
+            // or: put current x, y, z in global reader variables, 
+            // could calculate ix, iy, iz here, but can only do this AFTER x,y,z 
+            // were assigned!  => i.e. would need to check in generated schema 
+            // that it is in correct order
+
+
+
+
+        // if we still did not return ...
+        fflush(stdout);
+        fflush(stderr);
+        printf("\nERROR: Something went wrong... (no dataItem for schemaItem %s found)\n", thisItem->getDataObjName().c_str());
+        exit(EXIT_FAILURE);
+        
         return isNull;
     }
 

@@ -1,6 +1,5 @@
 /*  
- *  Copyright (c) 2012, Adrian M. Partl <apartl@aip.de>,
- *                      Kristin Riebe <kriebe@aip.de>, 
+ *  Copyright (c) 2015, Kristin Riebe <kriebe@aip.de>, 
  *                      eScience team AIP Potsdam
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -43,13 +42,11 @@ namespace po = boost::program_options;
 int main (int argc, const char * argv[])
 {
     string dataFile;
+    string mapFile;
     int snapnum;
-    int level;
-    int nlimit;
     int ngrid;
-    float aexpn;
-    float box;
-    double idfactor;
+    int jobNum;
+    int fileNum;
     
     // allow to use only some part of the data file, 
     // i.e. specify offset and maximum number of rows:
@@ -71,6 +68,7 @@ int main (int argc, const char * argv[])
 //    bool greedyDelim;
     bool isDryRun = false;
     bool resumeMode;
+    bool askUserToValidateRead = false; // do not validate, want to use some NULL columns
     
     DBServer::DBAbstractor * dbServer;
     DBIngest::DBIngestor * galacticusIngestor;
@@ -115,23 +113,19 @@ int main (int argc, const char * argv[])
                 ("port,O", po::value<string>(&port)->default_value("3306"), "port to use for database access (where applicable) [default: 3306 (mysql)]")
                 ("host,H", po::value<string>(&host)->default_value("localhost"), "host to use for database access (where applicable) [default: localhost]")
                 ("path,p", po::value<string>(&path)->default_value(""), "path to a database file (mainly for sqlite3, where applicable)")
-                ("snapnum,M", po::value<int32_t>(&snapnum)->default_value(0), "number of snapshot (needed for Ids)")
-/*                ("aexpn,a", po::value<float>(&aexpn)->default_value(1.0), "expansion factor a")
-                ("level,l", po::value<int32_t>(&level)->default_value(0), "level of linking length (needed for fofIds, top: 0)")
-                ("box,b", po::value<float>(&box)->default_value(0.0), "box size (same unit as coordinates in data file)")
-                ("nlimit,n", po::value<int32_t>(&nlimit)->default_value(0), "minimum number of particles in fof group (stop reading when reaching smaller groups, assumes rows are sorted by number of particles!))")
-                ("ngrid,g", po::value<int32_t>(&ngrid)->default_value(1024), "number of cells for positional grid)")
-*/
+                ("mapFile,f", po::value<string>(&mapFile)->default_value(""), "path to the mapping file")
+//                ("ngrid,g", po::value<int32_t>(&ngrid)->default_value(1024), "number of cells for positional grid)")
                 ("isDryRun", po::value<bool>(&isDryRun)->default_value(0), "should this run be carried out as a dry run (no data added to database)? [default: 0]")
-                ("startRow,i", po::value<int32_t>(&startRow)->default_value(0), "start reading at this initial row number (default 0)")
-                ("maxRows,m", po::value<int32_t>(&maxRows)->default_value(-1), "max. number of rows to be read (default -1 for all rows)")
-                ("idfactor,I", po::value<double>(&idfactor)->default_value(1.e11), "factor for calculating fofId for each FOF group")
+                ("jobNum", po::value<int>(&jobNum)->default_value(0), "number of the job (containing fileNum data files) [default: 0]")
+                ("fileNum", po::value<int>(&fileNum)->default_value(0), "number of the data file for given job number")
+//                ("startRow,i", po::value<int32_t>(&startRow)->default_value(0), "start reading at this initial row number (default 0)")
+//                ("maxRows,m", po::value<int32_t>(&maxRows)->default_value(-1), "max. number of rows to be read (default -1 for all rows)")
                 ("resumeMode,R", po::value<bool>(&resumeMode)->default_value(0), "try to resume ingest on failed connection (turns off transactions)? [default: 0]")                
                 ;
 
     po::positional_options_description posDesc;
     posDesc.add("data", 1);
-    
+
     //read out the options
     po::variables_map varMap;
     //po::store(po::command_line_parser(argc, argv).options(progDesc).positional(posDesc).run(), varMap);
@@ -164,14 +158,12 @@ int main (int argc, const char * argv[])
    
     DBAsserter::AsserterFactory * assertFac = new DBAsserter::AsserterFactory;
     DBConverter::ConverterFactory * convFac = new DBConverter::ConverterFactory;
-    //now setup the file reader
-    idfactor=1.e11;
 
-    GalacticusReader *thisReader = new GalacticusReader(dataFile, snapnum, startRow, maxRows, idfactor);
+    //now setup the file reader
+    GalacticusReader *thisReader = new GalacticusReader(dataFile, jobNum, fileNum, snapnum, startRow, maxRows);
     dbServer = adaptorFac.getDBAdaptors(system);
 
-
-    std::vector<string> dataSetNames;
+    vector<string> dataSetNames;
     dataSetNames = thisReader->getDataSetNames();
     cout << dataSetNames.size() << endl;;
     //for (int j=0; j<10; j++) {
@@ -185,18 +177,20 @@ int main (int argc, const char * argv[])
     //cout << "before schema " << endl; //<< thisReader->expansionFactors << endl;
     GalacticusSchemaMapper * thisSchemaMapper = new GalacticusSchemaMapper(assertFac, convFac);     //registering the converter and asserter factories
     //cout << " schema " << endl;
-    string fileName = "testdata.fieldmap";
-    thisSchemaMapper->readMappingFile(fileName);
+    //mapFile = "testdata.fieldmap";
+    cout << "mapFile: " << mapFile << endl;
+    thisSchemaMapper->readMappingFile(mapFile);
 
     DBDataSchema::Schema * thisSchema;
     thisSchema = thisSchemaMapper->generateSchema(dbase, table);
 
     cout << " generate Schema done" << endl;
     // print 
-    cout << "complete schema: " << endl;
+    /*cout << "complete schema: " << endl;
     for (int j=0; j<thisSchema->getArrSchemaItems().size(); j++) {
         cout << "col name: " << thisSchema->getArrSchemaItems().at(j)->getColumnName() << endl;
     }
+    */
 
     //abort();
     
@@ -242,7 +236,9 @@ int main (int argc, const char * argv[])
     
     // setup resume option, if desired
     galacticusIngestor->setResumeMode(resumeMode); 
-    
+    galacticusIngestor->setIsDryRun(isDryRun); 
+    galacticusIngestor->setAskUserToValidateRead(askUserToValidateRead); 
+   
     cout << "now everything ready to ingest ..." << endl;
    
     //now ingest data after setup

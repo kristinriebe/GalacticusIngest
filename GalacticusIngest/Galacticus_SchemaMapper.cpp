@@ -1,5 +1,5 @@
 /*  
- *  Copyright (c) 2012, Adrian M. Partl <apartl@aip.de>, 
+ *  Copyright (c) 2015, Kristin Riebe <kriebe@aip.de>,
  *                      eScience team AIP Potsdam
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -87,20 +87,25 @@ namespace Galacticus {
         //fileName = string("testdata.fieldmap");
         fileStream.open(mapFile.c_str(), ios::in);
         
+        if (!fileStream) {
+            cout << "ERROR: Cannot open file '" << mapFile << "'. Maybe it does not exist?" << endl;
+            abort(); 
+        }
+
         datafileFields.clear();
         databaseFields.clear();
 
         char *piece = NULL;
         char linechar[1024] = "";
 
-
         while ( getline (fileStream, line) ){
-            cout << "line: " << line << ", size: " << line.size() << endl;
+            //cout << "line: " << line << ", schema size: " << line.size() << endl;
  
             // skip empty lines and lines starting with #
             if (line.substr(0,1) != "#" && line.size() > 0) {
 
                 // use here either streaming or strtok ...
+                // but streaming is easier for handling tabs and whitespace
 
                 dataField.name = "";
                 dataField.type = "";
@@ -110,29 +115,30 @@ namespace Galacticus {
                 ss >> name;
                 ss >> type;
 
-                cout << "name, type (file): '" << name << "', '" << type << "'" << endl;
+                //cout << "name, type (file): '" << name << "', '" << type << "'" << endl;
                 dataField.name = name.c_str();
                 dataField.type = type.c_str();
-//                datafileFields.push_back(dataField);
+                datafileFields.push_back(dataField);
 
                 ss >> name;
                 ss >> type;
-                cout << "name, type (db): '" << name << "', '" << type << "'" << endl;
+                //cout << "name, type (db): '" << name << "', '" << type << "'" << endl;
 
                 dataField.name = name.c_str();
                 dataField.type = type.c_str();
-//                databaseFields.push_back(dataField);
+                databaseFields.push_back(dataField);
 
 
-                strcpy(linechar,line.c_str());
+                // if spaces only, the following code works well:
+                /*strcpy(linechar,line.c_str());
                 piece = strtok(linechar, " ");
+
                 while (piece != NULL) {
                     printf("piece: %s\n", piece);
                     textpieces.push_back(piece);
                     piece = strtok(NULL, " ");
-                    //cout << piece << endl;
                 }
-
+                
                 // check: size == 4!
 
                 dataField.name = textpieces[0];
@@ -142,64 +148,12 @@ namespace Galacticus {
                 dataField.name = textpieces[2];
                 dataField.type = textpieces[3];
                 databaseFields.push_back(dataField);
-
+                */
             }
 
         }
 
         fileStream.close();
-
-/*        name = "nodeIndex";
-        type = "INT8";
-        dataField.name = name;
-        dataField.type = type;
-        datafileFields.push_back(dataField);
-
-        type = "BIGINT";
-        dataField.type = type;
-        databaseFields.push_back(dataField);
-
-        name = "basicMass";
-        type = "REAL8";
-        dataField.name = name;
-        dataField.type = type;
-        datafileFields.push_back(dataField);
-
-        type = "DOUBLE";
-        dataField.type = type;
-        databaseFields.push_back(dataField);
-
-        name = "positionPositionX";
-        type = "REAL8";
-        dataField.name = name;
-        dataField.type = type;
-        datafileFields.push_back(dataField);
-
-        type = "DOUBLE";
-        dataField.type = type;
-        databaseFields.push_back(dataField);
-*/
-/*        //dataField.name = "nodeIndex";
-        //dataField.type = "INT8";
-        //datafileFields.push_back(dataField);
-
-        dataField.type = "BIGINT";
-        databaseFields.push_back(dataField);
-
-        dataField.name = "basicMass";
-        dataField.type = "REAL8";
-        datafileFields.push_back(dataField);
-
-        dataField.type = "DOUBLE";
-        databaseFields.push_back(dataField);
-
-        dataField.name = "positionPositionX";
-        dataField.type = "REAL8";
-        datafileFields.push_back(dataField);
-
-        dataField.type = "DOUBLE";
-        databaseFields.push_back(dataField);
-*/
 
         cout << "DataFields: " << datafileFields.size() << endl;
         for (int j=0; j<datafileFields.size(); j++) {
@@ -246,9 +200,6 @@ namespace Galacticus {
             dbtype = getDBType(dbtype_str); 
             
             //first create the data object describing the input data:
-            
-            //vec2.push_back(new DataObjDesc());
-            //vec2[vec2.size()-1] -> ...
             DataObjDesc* colObj = new DataObjDesc();
             colObj->setDataObjName(datafileFieldName);	// column name (data file)
             colObj->setDataObjDType(dtype);	// data file type
@@ -257,75 +208,17 @@ namespace Galacticus {
         
             //then describe the SchemaItem which represents the data on the server side
             SchemaItem* schemaItem = new SchemaItem();
-            schemaItem->setColumnName(databaseFieldName); //EMPTY_SCHEMAITEM_NAME);	// field name in Database
+            schemaItem->setColumnName(databaseFieldName);	// field name in Database
             schemaItem->setColumnDBType(dbtype);		// database field type
             schemaItem->setDataDesc(colObj);		// link to data object
-
 
             //add schema item to the schema
             returnSchema->addItemToSchema(schemaItem);
 
-            cout << "j: " << j << endl;
-            cout << "col name: " << returnSchema->getArrSchemaItems().at(j)->getColumnName() << endl;
-            cout << "size: " << returnSchema->getArrSchemaItems().size() << endl;
-
-            //cout << returnSchema->arrSchemaItems[0].columnName << endl;
-            //delete schemaItem; // automatically deletes colObj as well => deleting here causes seg. fault!!
-            // vector arr... only stores pointers
         }
 
-        // add some more schema items manually, for snapshot number, id, ...:
-        
-        DataObjDesc * col2Obj = new DataObjDesc();
-        col2Obj->setDataObjName("snapnum");  // column name (data file)
-        col2Obj->setDataObjDType(DT_INT8); // data file type
-        col2Obj->setIsConstItem(false, false); // not a constant
-        col2Obj->setIsHeaderItem(false); // not a header item
-        
-        //then describe the SchemaItem which represents the data on the server side
-        SchemaItem * schemaItem2 = new SchemaItem();
-        schemaItem2->setColumnName("snapnum"); // field name in Database
-        schemaItem2->setColumnDBType(DBT_INTEGER);        // database field type
-        schemaItem2->setDataDesc(col2Obj);        // link to data object
-
-        //add schema item to the schema
-        returnSchema->addItemToSchema(schemaItem2);
-
-        DataObjDesc * col3Obj = new DataObjDesc();
-        col3Obj->setDataObjName("scale");  // column name (data file)
-        col3Obj->setDataObjDType(DT_REAL8); // data file type
-        col3Obj->setIsConstItem(false, false); // not a constant
-        col3Obj->setIsHeaderItem(false); // not a header item
-        
-        //then describe the SchemaItem which represents the data on the server side
-        SchemaItem * schemaItem3 = new SchemaItem();
-        schemaItem3->setColumnName("scale"); // field name in Database
-        schemaItem3->setColumnDBType(DBT_REAL);        // database field type
-        schemaItem3->setDataDesc(col3Obj);        // link to data object
-
-        //add schema item to the schema
-        returnSchema->addItemToSchema(schemaItem3);
-
-        DataObjDesc * col4Obj = new DataObjDesc();
-        col4Obj->setDataObjName("NInOutput");  // column name (data file)
-        col4Obj->setDataObjDType(DT_INT8); // data file type
-        col4Obj->setIsConstItem(false, false); // not a constant
-        col4Obj->setIsHeaderItem(false); // not a header item
-        
-        //then describe the SchemaItem which represents the data on the server side
-        SchemaItem * schemaItem4 = new SchemaItem();
-        schemaItem4->setColumnName("NInOutput"); // field name in Database
-        schemaItem4->setColumnDBType(DBT_BIGINT);        // database field type
-        schemaItem4->setDataDesc(col4Obj);        // link to data object
-
-        //add schema item to the schema
-        returnSchema->addItemToSchema(schemaItem4);
-
-        // print 
-        cout << "complete schema: " << endl;
-        for (int j=0; j<returnSchema->getArrSchemaItems().size(); j++) {
-            cout << "col name: " << returnSchema->getArrSchemaItems().at(j)->getColumnName() << endl;
-        }
+        // add some more schema items manually, for snapshot number, id, ...
+        // => no, can add them to the file as well and process with the loop above
 
         return returnSchema;
     }

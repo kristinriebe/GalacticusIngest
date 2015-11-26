@@ -1,6 +1,6 @@
 /*  
- *  Copyright (c) 2012, Adrian M. Partl <apartl@aip.de>, 
- *			Kristin Riebe <kriebe@aip.de>,
+ *  Copyright (c) 2015, Adrian M. Partl <apartl@aip.de>,
+ *                      Kristin Riebe <kriebe@aip.de>,
  *                      eScience team AIP Potsdam
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");

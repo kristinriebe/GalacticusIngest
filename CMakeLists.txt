@@ -47,7 +47,7 @@ file(GLOB FILES_SRC "${AIDIR}/*.h" "${AIDIR}/*.cpp")
 #MESSAGE(STATUS "Dir: " ${DIDIR})
 
 SET(Boost_USE_MULTITHREAD ON)
-find_package (Boost COMPONENTS program_options REQUIRED)
+find_package (Boost COMPONENTS program_options filesystem system regex chrono serialization REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 #message("BOOST Include dirs: ${Boost_INCLUDE_DIRS}")
 link_directories(${Boost_LIBRARY_DIRS})
@@ -89,8 +89,7 @@ endif()
 
 add_executable (GalacticusIngest.x ${FILES_SRC})
 
-target_link_libraries(GalacticusIngest.x ${Boost_PROGRAM_OPTIONS_LIBRARY} ${HDF5_libraries} DBIngestor)
-#target_link_libraries(GalacticusIngest.x ${HDF5_libraries})
+target_link_libraries(GalacticusIngest.x ${Boost_LIBRARIES} ${HDF5_libraries} DBIngestor)
 
 if(SQLITE3_FOUND)
         target_link_libraries(GalacticusIngest.x ${SQLITE3_LIBRARIES})

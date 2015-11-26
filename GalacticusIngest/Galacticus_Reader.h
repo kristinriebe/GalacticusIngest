@@ -1,6 +1,5 @@
 /*  
- *  Copyright (c) 2012, Adrian M. Partl <apartl@aip.de>, 
- * 			Kristin Riebe <kriebe@aip.de>,
+ *  Copyright (c) 2015, Kristin Riebe <kriebe@aip.de>,
  *                      eScience team AIP Potsdam
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -58,15 +57,16 @@ namespace Galacticus {
     };
     // This own DataBlock-class is in principle the same as the dataset class!!
     // The only difference may be that the DataBlock shall not contain the whole
-    // DataSet, only a part, but this is what hypeslabs are for!!
+    // DataSet, only a part, but this is what hyperslabs are for!!
     // Hmmm ... does DataSet contain all the data or just a handle to these data???
 
     
     class GalacticusReader : public Reader {
     private:
-        std::string fileName;
-        
-        std::ifstream fileStream;
+        string fileName;
+        string mapFile;
+
+        ifstream fileStream;
 
         H5File* fp;//holds the opened hdf5 file
         long ioutput; // number of current output
@@ -74,62 +74,49 @@ namespace Galacticus {
         long numDataSets; // number of DataSets (= row fields, = columns) in each output
         long nvalues; // values in one dataset (assume the same number for each dataset of the same output group (redshift))
 
-        std::vector<string> dataSetNames;
+        vector<string> dataSetNames;
+        vector<string> dataSetMatchNames; // redshift stripped from names, for matching with schema
 
         long currRow;
         double *expansionFactors;
         
         //this is here for performance reasons. used to be in getItemInRow, but is allocated statically here to get rid
         //of many frees
-        std::string tmpStr;
-        
+        string tmpStr;
+
         long counter;
         long countInBlock;
 
-
-        // items from file
-        int lkl;
-        int iadr;
-        float rc1;
-        float rc2;
-        float rc3;
-        float vc1;
-        float vc2;
-        float vc3;
-        
+       
         //fields to be generated/converted/...
         int snapnum;
-        
+        long NInFileSnapnum;
+        double scale;
 
-        int NInFile;
-        int level;
-        long int fofId;
-        float size;
-        float spin;
-        float x;
-        float y;
-        float z;
-        float angMom;
+        //char dataFileBaseName[100]; // just the file name, without any directory info
+        string dataFileBaseName;
+        int jobNum;
+        int fileNum;
+
         int ix;
         int iy;
         int iz;
-        int phkey;
+        long phkey;
         
         // to be passed on from main
-        double idfactor; // factor to multiply snapnum with for getting the correct ids
         int startRow;   // at which row should we start ingesting
         int maxRows;    // max. number of rows to ingest
           
         // define something to hold all datasets from one read block 
         // (one complete Output* block or a part of it)
-        std::vector<DataBlock> datablocks;
+        vector<DataBlock> datablocks;
 
     public:
         GalacticusReader();
-        GalacticusReader(std::string newFileName, int snapnum, int startRow, int maxRows, double idfactor);
+        GalacticusReader(string newFileName, int jobNum, int fileNum, int snapnum, int startRow, int maxRows);
         ~GalacticusReader();
 
-        void openFile(std::string newFileName);
+        void openFile(string newFileName);
 
         void closeFile();
 
@@ -137,13 +124,13 @@ namespace Galacticus {
 
         double* getOutputsMeta(long &numOutputs);
 
-        
+
         int getNextRow();
         int readNextBlock(int ioutput); //possibly add startRow (numRow?), numRows? --> but these are global anyway
-        long* readLongDataSet(const std::string s, long &nvalues);
-        double* readDoubleDataSet(const std::string s, long &nvalues);
-        
-        long getNumRowsInDataSet(std::string s);
+        long* readLongDataSet(const string s, long &nvalues);
+        double* readDoubleDataSet(const string s, long &nvalues);
+
+        long getNumRowsInDataSet(string s);
 
         vector<string> getDataSetNames();
 
