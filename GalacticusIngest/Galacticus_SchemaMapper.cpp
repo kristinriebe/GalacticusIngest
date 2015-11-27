@@ -82,8 +82,6 @@ namespace Galacticus {
         
         DataField dataField;
         
-        vector<string> textpieces;
-        
         //fileName = string("testdata.fieldmap");
         fileStream.open(mapFile.c_str(), ios::in);
         
@@ -109,7 +107,7 @@ namespace Galacticus {
 
                 dataField.name = "";
                 dataField.type = "";
-                textpieces.clear();
+
                 ss.clear();
                 ss << line;
                 ss >> name;
@@ -128,27 +126,6 @@ namespace Galacticus {
                 dataField.type = type.c_str();
                 databaseFields.push_back(dataField);
 
-
-                // if spaces only, the following code works well:
-                /*strcpy(linechar,line.c_str());
-                piece = strtok(linechar, " ");
-
-                while (piece != NULL) {
-                    printf("piece: %s\n", piece);
-                    textpieces.push_back(piece);
-                    piece = strtok(NULL, " ");
-                }
-                
-                // check: size == 4!
-
-                dataField.name = textpieces[0];
-                dataField.type = textpieces[1];
-                datafileFields.push_back(dataField);
-                
-                dataField.name = textpieces[2];
-                dataField.type = textpieces[3];
-                databaseFields.push_back(dataField);
-                */
             }
 
         }

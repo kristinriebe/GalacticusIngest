@@ -32,7 +32,8 @@
 //using namespace boost::filesystem;
 
 //#include <boost/chrono.hpp>
-#include <cmath>
+//#include <cmath>
+#include <boost/date_time/posix_time/posix_time.hpp>
 
 
 namespace Galacticus {
@@ -282,17 +283,27 @@ namespace Galacticus {
         long nvalues;
         char outputname[1000];
 
+        //performance output stuff
+        int64_t counter = 0;
+        boost::posix_time::ptime startTime;
+        boost::posix_time::ptime endTime;
+        string newtext = "";
+        boost::regex re(":z[0-9.]*");
+        
+
+        startTime = boost::posix_time::microsec_clock::universal_time();
+
         //char ds[1000];
 
         // first get names of all DataSets in nodeData group and their item size
-
         if (ioutput >= numOutputs) {
             cout << "ioutput too large!" << endl;
             abort(); 
         }
 
         sprintf(outputname, "Outputs/Output%d/nodeData", ioutput);
-        cout << "ouputname: " << outputname<< endl;
+        cout << "outputname: " << outputname<< endl;
+            
 
         //sprintf(ds, "%s/basicMass", outputname);
         //nvalues = getNumRowsInDataSet(ds);
@@ -354,9 +365,21 @@ namespace Galacticus {
 
         string s;
 
+        string matchname;
         int numDataSets = dataSetNames.size();
         //cout << "numDataSets: " << numDataSets << endl;
         
+        // create a key-value map for the data set names, do it from scratch for each block        
+        dataSetMap.clear();
+        dataSetMatchNames.clear();
+        for (int k=0; k<numDataSets; k++) {
+            dsname = dataSetNames[k];
+            // convert to matchname, i.e. remove possibly given redshift from the name:
+            string matchname = boost::regex_replace(dsname, re, newtext);
+            dataSetMap[matchname] = k;
+            dataSetMatchNames.push_back(matchname);
+        }
+
         // clear datablocks from previous block, before reading new ones:
         datablocks.clear();
 
@@ -394,7 +417,11 @@ namespace Galacticus {
         // maybe can use datasets themselves, so no need to define own class?
         // => assigning to the new class has already happened now inside the read-class.
 
-        return nvalues; //assume that nvalies os the same for each dataset (datablock) inside one Output-group (same redshift)
+        endTime = boost::posix_time::microsec_clock::universal_time();
+        printf("Time for reading output %d (%ld rows): %lld ms\n", ioutput, nvalues, (long long int) (endTime-startTime).total_milliseconds());
+        fflush(stdout);
+            
+        return nvalues; //assume that nvalues is the same for each dataset (datablock) inside one Output-group (same redshift)
 
     }
 
@@ -633,20 +660,22 @@ namespace Galacticus {
             // last part of the name-string, after last '/'
             //boost::chrono::system_clock::time_point start = boost::chrono::system_clock::now();
             
-            size_t found = b.name.find_last_of("/");
-            name = b.name.substr(found+1);
+            //size_t found = b.name.find_last_of("/");
+            //name = b.name.substr(found+1);
             
             //boost::chrono::duration<double> sec = boost::chrono::system_clock::now() - start;
             
             // use name with redshift removed:            
-            string matchname = boost::regex_replace(name, re, newtext);
-            name = matchname;
+            //string matchname = boost::regex_replace(name, re, newtext);
+            //name = matchname;
             //name = dataSetMatchNames[j];
 
             //boost::chrono::duration<double> sec2 = boost::chrono::system_clock::now() - start;
             
             //cout << "1 took " << sec.count() << " seconds\n";
             //cout << "1+2 took " << sec2.count() << " seconds\n";
+
+            name = dataSetMatchNames[j];
     
 
             if (thisItem->getDataObjName().compare(name) == 0) {

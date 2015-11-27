@@ -24,6 +24,7 @@
 #include <assert.h>
 #include <list>
 #include <sstream>
+#include <map>
 
 #ifndef Galacticus_Galacticus_Reader_h
 #define Galacticus_Galacticus_Reader_h
@@ -76,6 +77,7 @@ namespace Galacticus {
 
         vector<string> dataSetNames;
         vector<string> dataSetMatchNames; // redshift stripped from names, for matching with schema
+        map<string,int> dataSetMap;
 
         long currRow;
         double *expansionFactors;
