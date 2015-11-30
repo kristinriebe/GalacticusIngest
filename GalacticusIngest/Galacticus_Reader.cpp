@@ -642,13 +642,72 @@ namespace Galacticus {
 
         DataBlock b;
         string name;
-        
-        string newtext = "";
-        boost::regex re(":z[0-9.]*");
             
-        // loop through all fields for one row
+        // get snapshot number and expansion factor from current Output number 
+        //cout << "ioutput: " << ioutput << endl;
+        if (thisItem->getDataObjName().compare("snapnum") == 0) {
+            //cout << "ioutput: " << ioutput << endl;
+            *(int*)(result) = ioutput;
+            return isNull;
+        }
+
+        if (thisItem->getDataObjName().compare("scale") == 0) {
+            *(double*)(result) = expansionFactors[ioutput];
+            return isNull;
+        }
+
+        if (thisItem->getDataObjName().compare("NInFileSnapnum") == 0) {
+            *(long*)(result) = countInBlock;
+            //result = (void *) countInBlock;
+            return isNull;
+        }
+
+        if (thisItem->getDataObjName().compare("jobNum") == 0) {
+            *(int*) result = jobNum;
+            return isNull;
+        }
+
+        if (thisItem->getDataObjName().compare("fileNum") == 0) {
+            *(int*) result = fileNum;
+            return isNull;
+        }
+
+
+        /* if (thisItem->getDataObjName().compare("ix") == 0) {
+            *(long*)(result) = countInBlock;
+            return isNull;
+        } */ // --> do it on the database side;
+            // or: put current x, y, z in global reader variables,
+            // could calculate ix, iy, iz here, but can only do this AFTER x,y,z
+            // were assigned!  => i.e. would need to check in generated schema
+            // that it is in correct order!
+
+        // quickly access the correct data block by name (should have redshift removed already)
+
+        // -- but first check, if key really exists in the
+        map<string,int>::iterator it = dataSetMap.find(thisItem->getDataObjName());
+        if (it == dataSetMap.end()) {
+            cout << "Error: key was not found in map of dataSets read from mapFile! (" << thisItem->getDataObjName() << ")" << endl;
+        }
+
+        b = datablocks[it->second];
+        if (b.longval) {
+            *(long*)(result) = b.longval[countInBlock];
+            return isNull;
+        } else if (b.doubleval) {
+            *(double*)(result) = b.doubleval[countInBlock];
+            return isNull;
+        } else {
+            cout << "Error: No corresponding data found!" << " (" << thisItem->getDataObjName() << ")" << endl;
+            abort();
+        }
+
+        // TODO: could avoid if-clause for longval/doubleval, if I include the type also in the map (define structure for this)
+        // => might save some more time!
+
+/*        // loop through all fields for one row
         for (int j=0; j<datablocks.size(); j++) {
-            
+
             b = datablocks[j]; // block for current column (or field), it's all of the same type
             if (countInBlock >= b.nvalues) {
                 cout << "countInBlock is too large! (" << countInBlock << " >= " << b.nvalues << ")" << endl;
@@ -659,24 +718,24 @@ namespace Galacticus {
             // strip output etc. from name, i.e. use only 
             // last part of the name-string, after last '/'
             //boost::chrono::system_clock::time_point start = boost::chrono::system_clock::now();
-            
+
             //size_t found = b.name.find_last_of("/");
             //name = b.name.substr(found+1);
-            
+
             //boost::chrono::duration<double> sec = boost::chrono::system_clock::now() - start;
-            
+
             // use name with redshift removed:            
             //string matchname = boost::regex_replace(name, re, newtext);
             //name = matchname;
             //name = dataSetMatchNames[j];
 
             //boost::chrono::duration<double> sec2 = boost::chrono::system_clock::now() - start;
-            
+
             //cout << "1 took " << sec.count() << " seconds\n";
             //cout << "1+2 took " << sec2.count() << " seconds\n";
 
             name = dataSetMatchNames[j];
-    
+
 
             if (thisItem->getDataObjName().compare(name) == 0) {
                 if (b.longval) {
@@ -697,72 +756,15 @@ namespace Galacticus {
                 }
             }
         }
-            
-        // get snapshot number and expansion factor from current Output number 
-        //cout << "ioutput: " << ioutput << endl;
-        if (thisItem->getDataObjName().compare("snapnum") == 0) {
-            //cout << "ioutput: " << ioutput << endl;
-            *(int*)(result) = ioutput;
-            return isNull;
-        }
 
-        if (thisItem->getDataObjName().compare("scale") == 0) {
-            *(double*)(result) = expansionFactors[ioutput];
-            return isNull;
-        }
-
-        if (thisItem->getDataObjName().compare("NInFileSnapnum") == 0) {
-            *(long*)(result) = countInBlock;
-            //result = (void *) countInBlock;
-            return isNull;
-        }
-        
-        if (thisItem->getDataObjName().compare("dataFile") == 0) {
-
-            //*(char**)(result) = dataFileBaseName; 
-            // If I do it this way (with string to char conversion already done in constructor), 
-            // then the free() at some later step fails (in DBIngestor, Converter.cpp, free(result)?).
-            // Thus allocate memory here and copy (as done in HelloWorld-example):
-            
-            //printf("datafile!\n");
-            char *charArray = (char*) malloc(dataFileBaseName.size()+1);
-            strcpy(charArray, dataFileBaseName.c_str());
-            //*(char**)(result) = charArray;
-
-            // still have problems with segmentation faults!
-
-            return isNull;
-        }
-
-        if (thisItem->getDataObjName().compare("jobNum") == 0) {
-            *(int*) result = jobNum;
-            return isNull;
-        }
-
-        if (thisItem->getDataObjName().compare("fileNum") == 0) {
-            *(int*) result = fileNum;
-            return isNull;
-        }
-
-        
-        /* if (thisItem->getDataObjName().compare("ix") == 0) {
-            *(long*)(result) = countInBlock;
-            return isNull;
-        } */ // --> do it on the database side; 
-            // or: put current x, y, z in global reader variables, 
-            // could calculate ix, iy, iz here, but can only do this AFTER x,y,z 
-            // were assigned!  => i.e. would need to check in generated schema 
-            // that it is in correct order
-
-
-
+*/
 
         // if we still did not return ...
         fflush(stdout);
         fflush(stderr);
         printf("\nERROR: Something went wrong... (no dataItem for schemaItem %s found)\n", thisItem->getDataObjName().c_str());
         exit(EXIT_FAILURE);
-        
+
         return isNull;
     }
 

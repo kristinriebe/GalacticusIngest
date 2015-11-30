@@ -122,6 +122,9 @@ int main (int argc, const char * argv[])
 //                ("maxRows,m", po::value<int32_t>(&maxRows)->default_value(-1), "max. number of rows to be read (default -1 for all rows)")
                 ("resumeMode,R", po::value<bool>(&resumeMode)->default_value(0), "try to resume ingest on failed connection (turns off transactions)? [default: 0]")                
                 ;
+    // Attention: many of these options actually are required; boost version 1.42 and above support ->required() (instead of default()), but not older versions;
+    // Unfortunately our servers only have boost 1.41 installed, so it would not work there.
+    // required options: dbase, table, mapFile, jobNum, fileNum
 
     po::positional_options_description posDesc;
     posDesc.add("data", 1);
