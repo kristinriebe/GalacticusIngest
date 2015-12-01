@@ -44,6 +44,7 @@ int main (int argc, const char * argv[])
     string dataFile;
     string mapFile;
     int snapnum;
+    int user_snapnum;
     int ngrid;
     int jobNum;
     int fileNum;
@@ -68,7 +69,7 @@ int main (int argc, const char * argv[])
 //    bool greedyDelim;
     bool isDryRun = false;
     bool resumeMode;
-    bool askUserToValidateRead = false; // do not validate, want to use some NULL columns
+    bool askUserToValidateRead = true; // can be overwritten by options below
     
     DBServer::DBAbstractor * dbServer;
     DBIngest::DBIngestor * galacticusIngestor;
@@ -120,7 +121,9 @@ int main (int argc, const char * argv[])
                 ("fileNum", po::value<int>(&fileNum)->default_value(0), "number of the data file for given job number")
 //                ("startRow,i", po::value<int32_t>(&startRow)->default_value(0), "start reading at this initial row number (default 0)")
 //                ("maxRows,m", po::value<int32_t>(&maxRows)->default_value(-1), "max. number of rows to be read (default -1 for all rows)")
-                ("resumeMode,R", po::value<bool>(&resumeMode)->default_value(0), "try to resume ingest on failed connection (turns off transactions)? [default: 0]")                
+                ("snapnum", po::value<int32_t>(&user_snapnum)->default_value(-1), "only read data for given snaphot number? [default: -1]")
+                ("resumeMode,R", po::value<bool>(&resumeMode)->default_value(0), "try to resume ingest on failed connection (turns off transactions)? [default: 0]")
+                ("validateSchema,v", po::value<bool>(&askUserToValidateRead)->default_value(1), "ask user to validate the schema mapping [default: 1]")
                 ;
     // Attention: many of these options actually are required; boost version 1.42 and above support ->required() (instead of default()), but not older versions;
     // Unfortunately our servers only have boost 1.41 installed, so it would not work there.
@@ -163,46 +166,29 @@ int main (int argc, const char * argv[])
     DBConverter::ConverterFactory * convFac = new DBConverter::ConverterFactory;
 
     //now setup the file reader
-    GalacticusReader *thisReader = new GalacticusReader(dataFile, jobNum, fileNum, snapnum, startRow, maxRows);
+    GalacticusReader *thisReader = new GalacticusReader(dataFile, jobNum, fileNum, user_snapnum, startRow, maxRows);
     dbServer = adaptorFac.getDBAdaptors(system);
 
-    vector<string> dataSetNames;
-    dataSetNames = thisReader->getDataSetNames();
-    cout << dataSetNames.size() << endl;;
-    //for (int j=0; j<10; j++) {
-    //    cout << "Names: " << dataSetNames[j] << endl;
-    //}
-    //abort();
+    //vector<string> dataSetNames;
+    //dataSetNames = thisReader->getDataSetNames(); // problem: they are not yet defined here, because they are read for each block again
+    //cout << dataSetNames.size() << endl;;
 
-
-
-
-    //cout << "before schema " << endl; //<< thisReader->expansionFactors << endl;
     GalacticusSchemaMapper * thisSchemaMapper = new GalacticusSchemaMapper(assertFac, convFac);     //registering the converter and asserter factories
-    //cout << " schema " << endl;
-    //mapFile = "testdata.fieldmap";
-    cout << "mapFile: " << mapFile << endl;
+    cout << "Mapping file: " << mapFile << endl;
     thisSchemaMapper->readMappingFile(mapFile);
 
     DBDataSchema::Schema * thisSchema;
     thisSchema = thisSchemaMapper->generateSchema(dbase, table);
 
-    cout << " generate Schema done" << endl;
-    // print 
     /*cout << "complete schema: " << endl;
     for (int j=0; j<thisSchema->getArrSchemaItems().size(); j++) {
         cout << "col name: " << thisSchema->getArrSchemaItems().at(j)->getColumnName() << endl;
     }
     */
-
-    //abort();
     
     galacticusIngestor = new DBIngest::DBIngestor(thisSchema, thisReader, dbServer);
     galacticusIngestor->setUsrName(user);
     galacticusIngestor->setPasswd(pwd);
-    
-//    galacticusIngestor->setIsDryRun(isDryRun); --> initialize now in DBIngestor constructor already.
-//    galacticusIngestor->setResumeMode(resumMode); --> initialize now in DBIngestor constructor already.
 
     //settings for different DBs (copy&paste from AsciiIngest)
     if(system.compare("mysql") == 0) {
@@ -234,8 +220,7 @@ int main (int argc, const char * argv[])
         galacticusIngestor->setSocket(socket);
         galacticusIngestor->setPort(port);
         galacticusIngestor->setHost(host);
-    }  
-    
+    }
     
     // setup resume option, if desired
     galacticusIngestor->setResumeMode(resumeMode); 

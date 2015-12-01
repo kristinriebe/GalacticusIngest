@@ -32,8 +32,8 @@
 using namespace DBReader;
 using namespace DBDataSchema;
 using namespace std;
-using std::cout;
-using std::endl;
+//using cout;
+//using endl;
 #include "H5Cpp.h"
 using namespace H5;
 
@@ -42,14 +42,26 @@ extern "C" herr_t file_info(hid_t loc_id, const char *name, const H5L_info_t *li
 
 namespace Galacticus {
     
+    class OutputMeta {
+        public:
+            int ioutput;
+            int snapnum; // usually the same as ioutput, but we never know ...
+            string outputName;
+            float outputExpansionFactor; // scale
+            float outputTime;
+
+            OutputMeta();
+    };
+
+
     class DataBlock {
         public:
             long nvalues;   // number of values in the block
-            std::string name;
+            string name;
             long idx;
             double *doubleval;
             long *longval;
-            std::string type;
+            string type;
 
             DataBlock();
             //DataBlock(DataBlock &source);
@@ -76,27 +88,24 @@ namespace Galacticus {
         long nvalues; // values in one dataset (assume the same number for each dataset of the same output group (redshift))
 
         vector<string> dataSetNames;
-        vector<string> dataSetMatchNames; // redshift stripped from names, for matching with schema
         map<string,int> dataSetMap;
 
-        long currRow;
-        double *expansionFactors;
-        
-        //this is here for performance reasons. used to be in getItemInRow, but is allocated statically here to get rid
-        //of many frees
+        vector<string> outputNames;
+        map<int, OutputMeta> outputMetaMap;
+        map<int, OutputMeta>::iterator it_outputmap;
+
+        // improve performance by defining it here (instead if inside getItemInRow)
         string tmpStr;
 
-        long counter;
+        long currRow;
         long countInBlock;
-
        
         //fields to be generated/converted/...
         int snapnum;
+        int user_snapnum;
         long NInFileSnapnum;
         double scale;
 
-        //char dataFileBaseName[100]; // just the file name, without any directory info
-        string dataFileBaseName;
         int jobNum;
         int fileNum;
 
@@ -115,7 +124,7 @@ namespace Galacticus {
 
     public:
         GalacticusReader();
-        GalacticusReader(string newFileName, int jobNum, int fileNum, int snapnum, int startRow, int maxRows);
+        GalacticusReader(string newFileName, int jobNum, int fileNum, int newSnapnum, int newStartRow, int newMaxRows);
         ~GalacticusReader();
 
         void openFile(string newFileName);
@@ -124,11 +133,11 @@ namespace Galacticus {
 
         void offsetFileStream();
 
-        double* getOutputsMeta(long &numOutputs);
+        void getOutputsMeta(long &numOutputs);
 
 
         int getNextRow();
-        int readNextBlock(int ioutput); //possibly add startRow (numRow?), numRows? --> but these are global anyway
+        int readNextBlock(string outputName); //possibly add startRow (numRow?), numRows? --> but these are global anyway
         long* readLongDataSet(const string s, long &nvalues);
         double* readDoubleDataSet(const string s, long &nvalues);
 

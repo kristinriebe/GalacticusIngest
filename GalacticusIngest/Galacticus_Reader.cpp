@@ -40,13 +40,11 @@ namespace Galacticus {
     GalacticusReader::GalacticusReader() {
         fp = NULL;
 
-        //counter = 0;
         currRow = 0;
     }
     
     GalacticusReader::GalacticusReader(std::string newFileName, int newJobNum, int newFileNum, int newSnapnum, int newStartRow, int newMaxRows) {          
-        // this->box = box;     
-        snapnum = newSnapnum;
+        user_snapnum = newSnapnum;
         startRow = newStartRow;
         maxRows = newMaxRows;
 
@@ -66,35 +64,29 @@ namespace Galacticus {
         jobNum = newJobNum;
         fileNum = newFileNum;
 
-        currRow = 0;
         
         //numBytesPerRow = 2*sizeof(int)+28*sizeof(float)+6*sizeof(int)+2*sizeof(int); // 36 values in total; + two fortran-binary-specific intermediate numbers
         
         fp = NULL;
 
-        counter = 0;
+        currRow = 0;
         countInBlock = 0;   // counts values in each datablock (output)
 
         //const H5std_string FILE_NAME( "SDS.h5" );
         openFile(newFileName);
         //offsetFileStream();
 
-        // read expansion factors
-        expansionFactors = getOutputsMeta(numOutputs);
+        // read expansion factors, output names etc.
+        getOutputsMeta(numOutputs);
 
-/*        cout << "numOutputs: " << numOutputs << endl;
-        cout << "Scale factors read from 'outputExpansionFactor' attribute for each Output*-group: " << endl;
-        for (int i=1; i<=numOutputs; i++) {
-            cout << "i = " << i << ", a = " << expansionFactors[i] << endl;
-        }
-        exit(0);
-*/        
+        // initialize iterator for meta data (output names)
+        it_outputmap = outputMetaMap.begin();
+
     }
     
     
     GalacticusReader::~GalacticusReader() {
         closeFile();
-        //delete expansionFactors();
         // delete data sets? i.e. call DataBlock::deleteData?
     }
     
@@ -124,25 +116,26 @@ namespace Galacticus {
         fp = NULL;
     }
 
-    double* GalacticusReader::getOutputsMeta(long &numOutputs) {
+    void GalacticusReader::getOutputsMeta(long &numOutputs) {
         char line[1000];
         double aexp;
+        int snapnum;
 
-        std::string s("Outputs");
-
-
+        string s("Outputs");
         Group group(fp->openGroup(s));
         hsize_t size = group.getNumObjs();
+        cout << "Number of outputs stored in this file is " << size << endl;
 
-        // should close the group now. How to do this?? just fp->closeGroup()?? or group.close()??
+        outputNames.clear();
+        int idx2  = H5Literate(group.getId(), H5_INDEX_NAME, H5_ITER_INC, NULL, file_info, &outputNames);
+
+        // should close the group now
         group.close();
 
-        //cout << "Number of outputs stored in this file is " << size << endl;
-        double *expansionFactors = new double[size+1];
-
-        for (int i=1; i<=size; i++) {
-            sprintf(line, "Outputs/Output%d", i);
-            Group group(fp->openGroup(line));
+        OutputMeta o;
+        for (int i=0; i<size; i++) {
+            string sg = s + string("/") + outputNames[i];
+            Group group(fp->openGroup(sg));
             Attribute att = group.openAttribute("outputExpansionFactor");
 
             // check type
@@ -151,14 +144,11 @@ namespace Galacticus {
                 cout << "Float attribute does not have correct type!" << endl;
                 abort();
             }
+
             // check byte order
             FloatType intype = att.getFloatType();
             H5std_string order_string;
             H5T_order_t order = intype.getOrder(order_string);
-            // only print order_string, if not little endian
-            //if (order != 0) {
-            //    cout << order_string << endl;
-            //}
 
             // check again data sizes
             if (sizeof(double) != intype.getSize()) {
@@ -169,20 +159,30 @@ namespace Galacticus {
             // read the attribute
             att.read(intype, &aexp);
 
+            // assign values
+            o.outputName = s + string("/") + outputNames[i] + string("/") + string("nodeData"); // complete name to access the data block
+            o.outputExpansionFactor = (float) aexp;
+
+            // get snapshot number = number at the end of "Output%d"
+            string prefix = "Output"; // Is this always the case??? Could also search for a number using boost regex
+            string numstr = outputNames[i].substr(prefix.length(),outputNames[i].length());
+            o.ioutput = (int) atoi(numstr.c_str());
+            snapnum = o.ioutput; // at least this is what I assume, not sure if this will always be the case!
+            o.snapnum = snapnum;
+
+            // store in map
+            outputMetaMap[snapnum] = o;
+
             // close the group
             group.close();
 
-            // add to array
-            expansionFactors[i] = aexp;
         }
 
         numOutputs = size;
-
-        return expansionFactors;
-
+        return;
     }
 
-    long GalacticusReader::getNumRowsInDataSet(std::string s) {
+    long GalacticusReader::getNumRowsInDataSet(string s) {
         // get number of rows (data entries) in given dataset
         // just check with the one given dataset and assume that all datasets
         // have the same size!
@@ -200,7 +200,6 @@ namespace Galacticus {
         delete d;
 
         return nvalues;
-
     }
     
 /*    void GalacticusReader::offsetFileStream() {
@@ -222,7 +221,6 @@ namespace Galacticus {
 
     vector<string> GalacticusReader::getDataSetNames() {
         return dataSetNames;
-
     }
 
     int GalacticusReader::getNextRow() {
@@ -230,37 +228,52 @@ namespace Galacticus {
 
         DataBlock b;
         string name;
+        int current_snapnum;
+        string outputName;
+
 
         // get one line from already read datasets (using readNextBlock)
+        // use readNextBlock to read the next block of datasets if necessary
+        if (currRow == 0) {
+            // we are at the very beginning
+            // read block for given snapnum or start reading from 1. block
+            if (user_snapnum != -1) {
+                snapnum = user_snapnum; // how would I know that it starts with 1?
+                numOutputs = 1;
+                //it_outputmap->second
+            } else {
+                snapnum = it_outputmap->first;
+            }
 
-        // cout << endl << "row count in this block " << countInBlock << ":" << endl;
-        //cout << endl << "nvalues " << nvalues << endl;
+            // get corresponding output name
+            outputName = outputMetaMap[snapnum].outputName;
 
-        if (counter == 0) {
-            ioutput = 1;
-            nvalues = readNextBlock(ioutput);
+            nvalues = readNextBlock(outputName);
             countInBlock = 0;
+
         } else if (countInBlock == nvalues-1) {
             // end of data block/start of new one is reached!
             // => read next datablocks (for next output number)
-            //cout << "Read next datablock!" << endl; 
-            ioutput = ioutput + 1;
-            nvalues = readNextBlock(ioutput);
-            countInBlock = 0;
+            //cout << "Read next datablock!" << endl;
+
+            if (numOutputs == 1) {
+                // we are done already
+                return 0;
+            }
+
+            if (it_outputmap != outputMetaMap.end()) {
+                it_outputmap++;
+                outputName = (it_outputmap->second).outputName;
+                nvalues = readNextBlock(outputName);
+                countInBlock = 0;
+            }
         } else {
             countInBlock++;
         }
 
-        // STOP WHEN TESTING
-        /*if (ioutput == 5) {
-            cout << "Stopping for now." << endl;
-            abort();
-        }*/
+        currRow++; // counts all rows
 
-        currRow++;
-        counter++;
-
-        // stop reading/ingesting, if number of particles (lkl) gets smaller than 20
+        // stop reading/ingesting, if mass is lower than threshold?
         
         // stop after reading maxRows, but only if it is not -1
         // Note: Could this be accelerated? It's unnecessary most of the time,
@@ -272,19 +285,18 @@ namespace Galacticus {
 //            }
 //        }
     
-        return 1;       
+        return 1;
     }
 
-    int GalacticusReader::readNextBlock(int ioutput) {
+    int GalacticusReader::readNextBlock(string outputName) {
         // read one complete Output* block from Galacticus HDF5-file
         // should fit into memory ... if not, need to adjust this
         // and provide the number of values to be read each time
 
         long nvalues;
-        char outputname[1000];
+        //char outputname[1000];
 
         //performance output stuff
-        int64_t counter = 0;
         boost::posix_time::ptime startTime;
         boost::posix_time::ptime endTime;
         string newtext = "";
@@ -293,103 +305,45 @@ namespace Galacticus {
 
         startTime = boost::posix_time::microsec_clock::universal_time();
 
-        //char ds[1000];
-
         // first get names of all DataSets in nodeData group and their item size
-        if (ioutput >= numOutputs) {
-            cout << "ioutput too large!" << endl;
-            abort(); 
-        }
+        cout << "outputName: " << outputName<< endl;
 
-        sprintf(outputname, "Outputs/Output%d/nodeData", ioutput);
-        cout << "outputname: " << outputname<< endl;
-            
-
-        //sprintf(ds, "%s/basicMass", outputname);
-        //nvalues = getNumRowsInDataSet(ds);
-        //cout << "nvalues: " << nvalues << endl;
-
-        Group group(fp->openGroup(outputname));
+        Group group(fp->openGroup(outputName));
+        // maybe check here that it worked?
 
         hsize_t len = group.getNumObjs();
-        //cout << "number of output groups: " << len << endl; // works!!
-
 
         //cout << "Iterating over Datasets in the group ... " << endl;
         //H5L_iterate_t
         //vector<string> dsnames;
         dataSetNames.clear(); // actually, the names should be exactly the same as for the group before!! --> check this???
         int idx2  = H5Literate(group.getId(), H5_INDEX_NAME, H5_ITER_INC, NULL, file_info, &dataSetNames);
-        
-        // cleanup the dataSetNames
-        // i.e. remove redshift, if it is included in the name, 
-        // e.g. spheroidLuminositiesStellar:SDSS_g:observed:z6.0000
-        // or spheroidLuminositiesStellar:SDSS_g:observed:z6.0000:dustAtlas
-        //size_t found = str.find(str2);
-        //if (found!=std::string::npos)
-        //std::cout << "first 'needle' found at: " << found << '\n';
-        //char *piece = NULL;
-        //char namechar[1024] = "";
-        
-        /*dataSetMatchNames.clear();
-        dataSetMatchNames = dataSetNames; 
-        for (int m=0; m<dataSetNames.size(); m++) {
-            //redshift = 
-            //size_t found = dataSetNames[m].find(":z");
-            // if (found!=std::string::npos) cout << found << endl;
-
-            string newtext = "";
-            //boost::regex re(":z[:digit:]+\.[:digit:]*");
-            boost::regex re(":z[0-9.]*");
-            //cout << "before: " << dataSetNames[m] << endl;
-
-            string result = boost::regex_replace(dataSetNames[m], re, newtext);
-            dataSetMatchNames[m] = result;
-            // should store it as key-value for easy access to datasets by match name!
-            //cout << "after:  " << dataSetMatchNames[m] << endl;
-        }
-        */
-
-        // print some of the field names:
-        //for (int m=0; m<dataSetNames.size(); m++) {
-        //    cout << dataSetNames[m] << endl;
-        //}
-        //delete group;
-
-
-        // read each desired data set, use corresponding read routine for different types
-        string dsname;
-
-        //dataSetNames.push_back("blackHoleCount");
-        //dataSetNames.push_back("inclination");
 
         string s;
-
+        string dsname;
         string matchname;
         int numDataSets = dataSetNames.size();
         //cout << "numDataSets: " << numDataSets << endl;
         
-        // create a key-value map for the data set names, do it from scratch for each block        
+        // create a key-value map for the dataset names, do it from scratch for each block,
+        // and remove redshifts from the dataset names (where necessary)    
         dataSetMap.clear();
-        dataSetMatchNames.clear();
         for (int k=0; k<numDataSets; k++) {
             dsname = dataSetNames[k];
             // convert to matchname, i.e. remove possibly given redshift from the name:
             string matchname = boost::regex_replace(dsname, re, newtext);
             dataSetMap[matchname] = k;
-            dataSetMatchNames.push_back(matchname);
+            //dataSetMatchNames.push_back(matchname);
         }
 
         // clear datablocks from previous block, before reading new ones:
         datablocks.clear();
 
+        // read each desired data set, use corresponding read routine for different types
         for (int k=0; k<numDataSets; k++) {
 
-            //cout << "k, numDataSets: " << k << ", " << numDataSets << endl;
-
             dsname = dataSetNames[k];
-            s = string(outputname) + string("/") + dsname;
-            //cout << "dsname: " << dsname << endl;
+            s = string(outputName) + string("/") + dsname;
 
             DataSet *dptr = new DataSet(fp->openDataSet(s));
             DataSet dataset = *dptr; // for convenience
@@ -418,11 +372,10 @@ namespace Galacticus {
         // => assigning to the new class has already happened now inside the read-class.
 
         endTime = boost::posix_time::microsec_clock::universal_time();
-        printf("Time for reading output %d (%ld rows): %lld ms\n", ioutput, nvalues, (long long int) (endTime-startTime).total_milliseconds());
+        printf("Time for reading output %s (%ld rows): %lld ms\n", outputName.c_str(), nvalues, (long long int) (endTime-startTime).total_milliseconds());
         fflush(stdout);
             
         return nvalues; //assume that nvalues is the same for each dataset (datablock) inside one Output-group (same redshift)
-
     }
 
 
@@ -457,7 +410,6 @@ namespace Galacticus {
 
         size_t dsize = intype.getSize();
         //cout << "Data size is " << dsize << endl;
-
 
         // get dataspace of the dataset (the array length or so)
         DataSpace dataspace = dataset.getSpace();
@@ -614,12 +566,6 @@ namespace Galacticus {
         
         //apply conversion
         //applyConversions(thisItem, result);
-        
-        /*cout << "Name, value: " << thisItem->getDataObjName() << ": " << *(double*) result << ", long: " << *(long*) result << endl;
-        if (thisItem->getDataObjName() == "dataFile") {
-            cout << "Name, value: " << thisItem->getDataObjName() << ": " << *(char**) result << endl;
-            //abort();
-        } */   
 
         return 0;
     }
@@ -642,17 +588,33 @@ namespace Galacticus {
 
         DataBlock b;
         string name;
+
+        // quickly access the correct data block by name (should have redshift removed already),
+        // but make sure that key really exists in the map
+        map<string,int>::iterator it = dataSetMap.find(thisItem->getDataObjName());
+        if (it != dataSetMap.end()) {
+            b = datablocks[it->second];
+            if (b.longval) {
+                *(long*)(result) = b.longval[countInBlock];
+                return isNull;
+            } else if (b.doubleval) {
+                *(double*)(result) = b.doubleval[countInBlock];
+                return isNull;
+            } else {
+                cout << "Error: No corresponding data found!" << " (" << thisItem->getDataObjName() << ")" << endl;
+                abort();
+            }
+        }
+
             
         // get snapshot number and expansion factor from current Output number 
-        //cout << "ioutput: " << ioutput << endl;
         if (thisItem->getDataObjName().compare("snapnum") == 0) {
-            //cout << "ioutput: " << ioutput << endl;
-            *(int*)(result) = ioutput;
+            *(int*)(result) = snapnum;
             return isNull;
         }
 
         if (thisItem->getDataObjName().compare("scale") == 0) {
-            *(double*)(result) = expansionFactors[ioutput];
+            *(double*)(result) = outputMetaMap[snapnum].outputExpansionFactor;
             return isNull;
         }
 
@@ -672,92 +634,41 @@ namespace Galacticus {
             return isNull;
         }
 
-
-        /* if (thisItem->getDataObjName().compare("ix") == 0) {
-            *(long*)(result) = countInBlock;
+        if (thisItem->getDataObjName().compare("forestId") == 0) {
+            *(long*) result = 0;
+            isNull = true;
             return isNull;
-        } */ // --> do it on the database side;
-            // or: put current x, y, z in global reader variables,
-            // could calculate ix, iy, iz here, but can only do this AFTER x,y,z
-            // were assigned!  => i.e. would need to check in generated schema
-            // that it is in correct order!
-
-        // quickly access the correct data block by name (should have redshift removed already)
-
-        // -- but first check, if key really exists in the
-        map<string,int>::iterator it = dataSetMap.find(thisItem->getDataObjName());
-        if (it == dataSetMap.end()) {
-            cout << "Error: key was not found in map of dataSets read from mapFile! (" << thisItem->getDataObjName() << ")" << endl;
         }
 
-        b = datablocks[it->second];
-        if (b.longval) {
-            *(long*)(result) = b.longval[countInBlock];
+        if (thisItem->getDataObjName().compare("ix") == 0) {
+            *(int*) result = 0;
+            isNull = true;
             return isNull;
-        } else if (b.doubleval) {
-            *(double*)(result) = b.doubleval[countInBlock];
-            return isNull;
-        } else {
-            cout << "Error: No corresponding data found!" << " (" << thisItem->getDataObjName() << ")" << endl;
-            abort();
         }
 
-        // TODO: could avoid if-clause for longval/doubleval, if I include the type also in the map (define structure for this)
-        // => might save some more time!
-
-/*        // loop through all fields for one row
-        for (int j=0; j<datablocks.size(); j++) {
-
-            b = datablocks[j]; // block for current column (or field), it's all of the same type
-            if (countInBlock >= b.nvalues) {
-                cout << "countInBlock is too large! (" << countInBlock << " >= " << b.nvalues << ")" << endl;
-                abort();
-            }
-
-            //cout << "sizes in b: " << b.longval.size() << ", " << b.doubleval.size() << endl;
-            // strip output etc. from name, i.e. use only 
-            // last part of the name-string, after last '/'
-            //boost::chrono::system_clock::time_point start = boost::chrono::system_clock::now();
-
-            //size_t found = b.name.find_last_of("/");
-            //name = b.name.substr(found+1);
-
-            //boost::chrono::duration<double> sec = boost::chrono::system_clock::now() - start;
-
-            // use name with redshift removed:            
-            //string matchname = boost::regex_replace(name, re, newtext);
-            //name = matchname;
-            //name = dataSetMatchNames[j];
-
-            //boost::chrono::duration<double> sec2 = boost::chrono::system_clock::now() - start;
-
-            //cout << "1 took " << sec.count() << " seconds\n";
-            //cout << "1+2 took " << sec2.count() << " seconds\n";
-
-            name = dataSetMatchNames[j];
-
-
-            if (thisItem->getDataObjName().compare(name) == 0) {
-                if (b.longval) {
-
-                    //if (thisItem->getColumnDBType() == DBT_SMALLINT) {
-                    //    cout << "Found a small int!!!" << endl;
-                    //    abort();
-                    //}
-
-                    *(long*)(result) = b.longval[countInBlock];
-                    return isNull;
-                } else if (b.doubleval) {
-                     *(double*)(result) = b.doubleval[countInBlock];
-                    return isNull;
-                } else {
-                    cout << "No corresponding data found!" << endl;
-                    abort();
-                }
-            }
+        if (thisItem->getDataObjName().compare("iy") == 0) {
+            *(int*) result = 0;
+            isNull = true;
+            return isNull;
         }
 
-*/
+        if (thisItem->getDataObjName().compare("iz") == 0) {
+            *(int*) result = 0;
+            isNull = true;
+            return isNull;
+        }
+
+        if (thisItem->getDataObjName().compare("phkey") == 0) {
+            *(long*) result = 0;
+            isNull = true;
+            return isNull;
+        }
+
+        // --> do it on the database side;
+        // or: put current x, y, z in global reader variables,
+        // could calculate ix, iy, iz here, but can only do this AFTER x,y,z
+        // were assigned!  => i.e. would need to check in generated schema
+        // that it is in correct order!
 
         // if we still did not return ...
         fflush(stdout);
@@ -817,6 +728,14 @@ namespace Galacticus {
         }
     }
 
+    OutputMeta::OutputMeta() {
+        ioutput = 0;
+        outputExpansionFactor = 0;
+        outputTime = 0;
+    };
+
+    /* OutputMeta::deleteData() {
+    }; */
 }
 
 
@@ -828,7 +747,7 @@ herr_t file_info(hid_t loc_id, const char *name, const H5L_info_t *linfo, void *
     //cout << name << endl;
 
     // store name in string vector, pointer to this is provided as parameter
-    std::vector<string>* n = (std::vector<string>*) opdata;
+    vector<string>* n = (vector<string>*) opdata;
     n->push_back(name);
 
     return 0;
