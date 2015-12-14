@@ -101,7 +101,7 @@ namespace Galacticus {
         long countInBlock;
        
         //fields to be generated/converted/...
-        int snapnum;
+        int current_snapnum;
         int user_snapnum;
         long NInFileSnapnum;
         double scale;
@@ -148,6 +148,8 @@ namespace Galacticus {
         void setCurrRow(long n);
         long getCurrRow();
         long getNumOutputs();
+
+        int getSnapnum(long ioutput);
         
         bool getItemInRow(DBDataSchema::DataObjDesc * thisItem, bool applyAsserters, bool applyConverters, void* result);
 

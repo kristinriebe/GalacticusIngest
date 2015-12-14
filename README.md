@@ -15,9 +15,13 @@ Kristin Riebe, kriebe@aip.de
 
 Data files
 -----------
-The HDF5 data files are structured as follows:  
-...  
-[see README in data directory on erebos]
+There are a number of results file, each one of them is in HDF5-format and is structured as follows:  
+
+* `Outputs` group:  
+    - contains metadata like scale and time for each subgroup  
+    - contains subgroups for each snapshot in time called Output1, Output2 etc.  
+* `Outputs/Output*` subgroups: contain the data in `nodeData`  
+* `Outputs/Output*/nodeData`: contains the actual data in form of arrays for each column. The column names roughly correspond to the names in the database table for most columns. Some columns are ignored for the database, though. 
 
 
 Features
@@ -25,9 +29,10 @@ Features
 Byteswapping is automatically taken care of by the HDF5-library.
 Provide a map-file to map fields from the data file to database columns. 
 The format is:  
-name_in_file  datatype_in_file  name_in_DB  datatype_in_DB
+`name_in_file`  `datatype_in_file`  `name_in_DB`  `datatype_in_DB`
 
 (see readMappingFile function in SchemaMapper.cpp)
+
 
 Installation
 --------------
@@ -45,8 +50,6 @@ TODO
 * Read constant values as well (for phkeys)
 * Allow calculations on the fly (ix, iy, iz)
 * Maybe use same format as structure files of AsciiIngest
-* Optimize getDataItem (avoid loop through all data names each time?)
-* Use snapnum as argument to ingest only data for a certain snapshot number (output number)
 * Make data path for HDF5-file variable (user input?)
 * Allow usage of startRow, maxRows to start reading at an arbitrary row
 * Use asserters

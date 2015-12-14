@@ -116,6 +116,31 @@ namespace Galacticus {
         fp = NULL;
     }
 
+
+    int GalacticusReader::getSnapnum(long ioutput) {
+        // map output-index from the file to the snapshot numbers used in the underlying Rockstar-catalogues
+        // 
+        int snapnum;
+
+        if (ioutput == 1) {
+            snapnum = 26;
+        } else if (ioutput == 2) {
+            snapnum = 31;
+        } else if (ioutput == 3) {
+            snapnum = 37;
+        } else if (ioutput == 4) {
+            snapnum = 39;
+        } else if (ioutput >= 5 && ioutput <= 79) {
+            snapnum = ioutput + 46;
+        } else {
+            printf("ERROR: No matching snapshot number for output %ld available.\n", ioutput);
+            exit(0);
+        }
+
+        return snapnum;
+
+    }
+
     void GalacticusReader::getOutputsMeta(long &numOutputs) {
         char line[1000];
         double aexp;
@@ -167,7 +192,7 @@ namespace Galacticus {
             string prefix = "Output"; // Is this always the case??? Could also search for a number using boost regex
             string numstr = outputNames[i].substr(prefix.length(),outputNames[i].length());
             o.ioutput = (int) atoi(numstr.c_str());
-            snapnum = o.ioutput; // at least this is what I assume, not sure if this will always be the case!
+            snapnum = getSnapnum(o.ioutput);
             o.snapnum = snapnum;
 
             // store in map
@@ -201,27 +226,12 @@ namespace Galacticus {
 
         return nvalues;
     }
-    
-/*    void GalacticusReader::offsetFileStream() {
-        int irowda        streamoff ipos;
-        
-        assert(fileStream.is_open());
-        
-        // position pointer at beginning of the row where ingestion should start
-        //numBytesPerRow = 2*sizeof(int)+28*sizeof(float)+6*sizeof(int)+2*sizeof(int); // 36 values in total;  
-        ipos = (streamoff) ( (long) startRow * (long) numBytesPerRow );
-        fileStream.seekg(ipos, ios::beg);
-        
-        // update currow
-        currRow = startRow;
-        
-        cout<<"offset currRow: "<<currRow<<endl;
-    }
-*/            
+
 
     vector<string> GalacticusReader::getDataSetNames() {
         return dataSetNames;
     }
+
 
     int GalacticusReader::getNextRow() {
         //assert(fileStream.is_open());
@@ -231,22 +241,21 @@ namespace Galacticus {
         int current_snapnum;
         string outputName;
 
-
         // get one line from already read datasets (using readNextBlock)
         // use readNextBlock to read the next block of datasets if necessary
         if (currRow == 0) {
             // we are at the very beginning
             // read block for given snapnum or start reading from 1. block
             if (user_snapnum != -1) {
-                snapnum = user_snapnum; // how would I know that it starts with 1?
+                current_snapnum = user_snapnum;
                 numOutputs = 1;
-                //it_outputmap->second
             } else {
-                snapnum = it_outputmap->first;
+                it_outputmap = outputMetaMap.begin(); // just to be on the save side, actually already done at constructor
+                current_snapnum = it_outputmap->first;
             }
 
             // get corresponding output name
-            outputName = outputMetaMap[snapnum].outputName;
+            outputName = outputMetaMap[current_snapnum].outputName;
 
             nvalues = readNextBlock(outputName);
             countInBlock = 0;
@@ -261,12 +270,20 @@ namespace Galacticus {
                 return 0;
             }
 
-            if (it_outputmap != outputMetaMap.end()) {
-                it_outputmap++;
-                outputName = (it_outputmap->second).outputName;
-                nvalues = readNextBlock(outputName);
-                countInBlock = 0;
+            // increase iteratoru over output-metadata (names)
+            it_outputmap++;
+
+            // check if we are at the end
+            if (it_outputmap == outputMetaMap.end()) {
+                return 0;
             }
+
+            // if we end up here, we should read the next block
+            current_snapnum = it_outputmap->first;
+            outputName = (it_outputmap->second).outputName;
+            nvalues = readNextBlock(outputName);
+            countInBlock = 0;
+
         } else {
             countInBlock++;
         }
@@ -572,9 +589,9 @@ namespace Galacticus {
 
     bool GalacticusReader::getDataItem(DBDataSchema::DataObjDesc * thisItem, void* result) {
 
-        //check if this is "Col1" etc. and if yes, assign corresponding value
-        //the variables are declared already in Galacticus_Reader.h 
-        //and the values were read in getNextRow()
+        // check which DB column is requested and assign the corresponding data value,
+        // variables are declared already in Galacticus_Reader.h
+        // and the values were read in getNextRow()
         bool isNull;
         //cout << " again2 ioutput: " << ioutput << endl;
         //NInFile = currRow-1;	// start counting rows with 0       
@@ -605,16 +622,16 @@ namespace Galacticus {
                 abort();
             }
         }
-
             
-        // get snapshot number and expansion factor from current Output number 
+        // get snapshot number and expansion factor from already read metadata 
+        // for this output
         if (thisItem->getDataObjName().compare("snapnum") == 0) {
-            *(int*)(result) = snapnum;
+            *(int*)(result) = current_snapnum;
             return isNull;
         }
 
         if (thisItem->getDataObjName().compare("scale") == 0) {
-            *(double*)(result) = outputMetaMap[snapnum].outputExpansionFactor;
+            *(double*)(result) = outputMetaMap[current_snapnum].outputExpansionFactor;
             return isNull;
         }
 
