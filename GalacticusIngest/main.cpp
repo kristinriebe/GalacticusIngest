@@ -46,7 +46,6 @@ int main (int argc, const char * argv[])
     int snapnum;
     int user_snapnum;
     int ngrid;
-    int jobNum;
     int fileNum;
     
     // allow to use only some part of the data file, 
@@ -117,8 +116,8 @@ int main (int argc, const char * argv[])
                 ("mapFile,f", po::value<string>(&mapFile)->default_value(""), "path to the mapping file")
 //                ("ngrid,g", po::value<int32_t>(&ngrid)->default_value(1024), "number of cells for positional grid)")
                 ("isDryRun", po::value<bool>(&isDryRun)->default_value(0), "should this run be carried out as a dry run (no data added to database)? [default: 0]")
-                ("jobNum", po::value<int>(&jobNum)->default_value(0), "number of the job (containing fileNum data files) [default: 0]")
-                ("fileNum", po::value<int>(&fileNum)->default_value(0), "number of the data file for given job number")
+//                ("dirNum", po::value<int>(&dirNum)->default_value(0), "number of the directory containing fileNum data files) [default: 0]")
+                ("fileNum", po::value<int>(&fileNum)->default_value(0), "number of the data file; possible prefix (e.g. dirNum*1000) could indicate the file directory number")
 //                ("startRow,i", po::value<int32_t>(&startRow)->default_value(0), "start reading at this initial row number (default 0)")
 //                ("maxRows,m", po::value<int32_t>(&maxRows)->default_value(-1), "max. number of rows to be read (default -1 for all rows)")
                 ("snapnum", po::value<int32_t>(&user_snapnum)->default_value(-1), "only read data for given snaphot number? [default: -1]")
@@ -127,7 +126,7 @@ int main (int argc, const char * argv[])
                 ;
     // Attention: many of these options actually are required; boost version 1.42 and above support ->required() (instead of default()), but not older versions;
     // Unfortunately our servers only have boost 1.41 installed, so it would not work there.
-    // required options: dbase, table, mapFile, jobNum, fileNum
+    // required options: dbase, table, mapFile, fileNum
 
     po::positional_options_description posDesc;
     posDesc.add("data", 1);
@@ -166,7 +165,7 @@ int main (int argc, const char * argv[])
     DBConverter::ConverterFactory * convFac = new DBConverter::ConverterFactory;
 
     //now setup the file reader
-    GalacticusReader *thisReader = new GalacticusReader(dataFile, jobNum, fileNum, user_snapnum, startRow, maxRows);
+    GalacticusReader *thisReader = new GalacticusReader(dataFile, fileNum, user_snapnum);
     dbServer = adaptorFac.getDBAdaptors(system);
 
     //vector<string> dataSetNames;
@@ -224,7 +223,7 @@ int main (int argc, const char * argv[])
     
     // setup resume option, if desired
     galacticusIngestor->setResumeMode(resumeMode); 
-    galacticusIngestor->setIsDryRun(isDryRun); 
+    galacticusIngestor->setIsDryRun(isDryRun);
     galacticusIngestor->setAskUserToValidateRead(askUserToValidateRead); 
    
     cout << "now everything ready to ingest ..." << endl;

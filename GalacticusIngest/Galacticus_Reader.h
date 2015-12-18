@@ -106,7 +106,6 @@ namespace Galacticus {
         long NInFileSnapnum;
         double scale;
 
-        int jobNum;
         int fileNum;
 
         int ix;
@@ -114,9 +113,6 @@ namespace Galacticus {
         int iz;
         long phkey;
         
-        // to be passed on from main
-        int startRow;   // at which row should we start ingesting
-        int maxRows;    // max. number of rows to ingest
           
         // define something to hold all datasets from one read block 
         // (one complete Output* block or a part of it)
@@ -124,17 +120,14 @@ namespace Galacticus {
 
     public:
         GalacticusReader();
-        GalacticusReader(string newFileName, int jobNum, int fileNum, int newSnapnum, int newStartRow, int newMaxRows);
+        GalacticusReader(string newFileName, int fileNum, int newSnapnum);
         ~GalacticusReader();
 
         void openFile(string newFileName);
 
         void closeFile();
 
-        void offsetFileStream();
-
         void getOutputsMeta(long &numOutputs);
-
 
         int getNextRow();
         int readNextBlock(string outputName); //possibly add startRow (numRow?), numRows? --> but these are global anyway

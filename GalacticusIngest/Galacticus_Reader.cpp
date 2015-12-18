@@ -43,30 +43,18 @@ namespace Galacticus {
         currRow = 0;
     }
     
-    GalacticusReader::GalacticusReader(std::string newFileName, int newJobNum, int newFileNum, int newSnapnum, int newStartRow, int newMaxRows) {          
+    GalacticusReader::GalacticusReader(string newFileName, int newFileNum, int newSnapnum) {
         user_snapnum = newSnapnum;
-        startRow = newStartRow;
-        maxRows = newMaxRows;
-
         fileName = newFileName;
         
         // strip path from file name
         //boost::filesystem::path p(fileName);
         //dataFileBaseName = p.filename().string(); // or use stem() for omitting extension
-        
-        // get job number and file number from file name?
-        // for this dataset, files are named like this: job0/the_trees_0_1000000_0_results.hdf5
-        // and job1/the_trees_1000000_2000000_9_results.hdf5
-        // => jobNum: strip "the_trees_", then everything beyond "_"; 
-        // => fileNum: strip _results.hdf5, everthing before "_"
-        // Welll ... just let the user provide these numbers ...
-
-        jobNum = newJobNum;
+        // get directory number and file number from file name?
+        // no, just let the user provide a file number and take care of mapping
+        // the (arbitrary) file/directory names to the number; mainly for internal use
         fileNum = newFileNum;
 
-        
-        //numBytesPerRow = 2*sizeof(int)+28*sizeof(float)+6*sizeof(int)+2*sizeof(int); // 36 values in total; + two fortran-binary-specific intermediate numbers
-        
         fp = NULL;
 
         currRow = 0;
@@ -118,8 +106,8 @@ namespace Galacticus {
 
 
     int GalacticusReader::getSnapnum(long ioutput) {
-        // map output-index from the file to the snapshot numbers used in the underlying Rockstar-catalogues
-        // 
+        // map output-index from the file to the snapshot numbers used in the underlying Rockstar-catalogues;
+        // very specific for this dataSet, should be read from file
         int snapnum;
 
         if (ioutput == 1) {
@@ -238,7 +226,6 @@ namespace Galacticus {
 
         DataBlock b;
         string name;
-        int current_snapnum;
         string outputName;
 
         // get one line from already read datasets (using readNextBlock)
@@ -248,6 +235,7 @@ namespace Galacticus {
             // read block for given snapnum or start reading from 1. block
             if (user_snapnum != -1) {
                 current_snapnum = user_snapnum;
+                cout << "1. snapnum: " << current_snapnum << endl;
                 numOutputs = 1;
             } else {
                 it_outputmap = outputMetaMap.begin(); // just to be on the save side, actually already done at constructor
@@ -641,11 +629,6 @@ namespace Galacticus {
             return isNull;
         }
 
-        if (thisItem->getDataObjName().compare("jobNum") == 0) {
-            *(int*) result = jobNum;
-            return isNull;
-        }
-
         if (thisItem->getDataObjName().compare("fileNum") == 0) {
             *(int*) result = fileNum;
             return isNull;
@@ -655,6 +638,20 @@ namespace Galacticus {
             *(long*) result = 0;
             isNull = true;
             return isNull;
+        }
+
+        if (thisItem->getDataObjName().compare("rockstarId") == 0) {
+            map<string,int>::iterator it2 = dataSetMap.find("satelliteNodeIndex");
+            if (it2 != dataSetMap.end()) {
+                b = datablocks[it2->second];
+                if (b.longval) {
+                    *(long*)(result) = b.longval[countInBlock];
+                    return isNull;
+                }
+            } else {
+                cout << "Error: No corresponding data found!" << " (satelliteNodeIndex)" << endl;
+                abort();
+            }
         }
 
         if (thisItem->getDataObjName().compare("ix") == 0) {
