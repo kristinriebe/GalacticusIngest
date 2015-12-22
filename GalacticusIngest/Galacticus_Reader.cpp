@@ -43,8 +43,9 @@ namespace Galacticus {
         currRow = 0;
     }
     
-    GalacticusReader::GalacticusReader(string newFileName, int newFileNum, int newSnapnum) {
-        user_snapnum = newSnapnum;
+    GalacticusReader::GalacticusReader(string newFileName, int newFileNum, vector<int> newSnapnums) {
+
+        user_snapnums = newSnapnums;
         fileName = newFileName;
         
         // strip path from file name
@@ -59,6 +60,12 @@ namespace Galacticus {
 
         currRow = 0;
         countInBlock = 0;   // counts values in each datablock (output)
+        countSnap = 0;
+
+        // factors for constructing dbId, could/should be read from user input, actually
+        snapnumfactor = 1000;
+        rowfactor = 1000000;
+
 
         //const H5std_string FILE_NAME( "SDS.h5" );
         openFile(newFileName);
@@ -67,12 +74,23 @@ namespace Galacticus {
         // read expansion factors, output names etc.
         getOutputsMeta(numOutputs);
 
-        // initialize iterator for meta data (output names)
-        it_outputmap = outputMetaMap.begin();
+        // set numOutputs, if snapnums are given
+        if (user_snapnums.size() > numOutputs) {
+            printf("ERROR: desired number of snapshot numbers is larger than available number of output! (%ld > %ld)\n", user_snapnums.size(), numOutputs);
+            exit(0);
+        }
+
+        if (user_snapnums.size() > 0) {
+            numOutputs = user_snapnums.size();
+            printf("Number of outputs set to %ld because of user options\n", numOutputs);
+        } else {
+            // initialize iterator for meta data (output names), (actually only needed, if not using user_snapnums)
+            it_outputmap = outputMetaMap.begin();
+        }
 
     }
-    
-    
+
+
     GalacticusReader::~GalacticusReader() {
         closeFile();
         // delete data sets? i.e. call DataBlock::deleteData?
@@ -104,7 +122,6 @@ namespace Galacticus {
         fp = NULL;
     }
 
-
     int GalacticusReader::getSnapnum(long ioutput) {
         // map output-index from the file to the snapshot numbers used in the underlying Rockstar-catalogues;
         // very specific for this dataSet, should be read from file
@@ -126,7 +143,6 @@ namespace Galacticus {
         }
 
         return snapnum;
-
     }
 
     void GalacticusReader::getOutputsMeta(long &numOutputs) {
@@ -233,17 +249,29 @@ namespace Galacticus {
         if (currRow == 0) {
             // we are at the very beginning
             // read block for given snapnum or start reading from 1. block
-            if (user_snapnum != -1) {
-                current_snapnum = user_snapnum;
-                cout << "1. snapnum: " << current_snapnum << endl;
-                numOutputs = 1;
+
+            if (user_snapnums.size() > 0) {
+                current_snapnum = user_snapnums[countSnap];
+                // check, if this snapnum really exists in outputMetaMap
+
+                it_outputmap = outputMetaMap.find(current_snapnum);
+                while (it_outputmap == outputMetaMap.end() && countSnap < numOutputs) {
+                    cout << "Skipping snapnum " << current_snapnum << " because no corresponding output-group was found." << endl;
+                    countSnap++;
+                    current_snapnum = user_snapnums[countSnap];
+                    it_outputmap = outputMetaMap.find(current_snapnum);
+                }
+                if (it_outputmap == outputMetaMap.end()) {
+                    return 0;
+                }
+                outputName = (it_outputmap->second).outputName;
             } else {
-                it_outputmap = outputMetaMap.begin(); // just to be on the save side, actually already done at constructor
                 current_snapnum = it_outputmap->first;
+                outputName = (it_outputmap->second).outputName;
             }
 
             // get corresponding output name
-            outputName = outputMetaMap[current_snapnum].outputName;
+            //outputName = outputMetaMap[current_snapnum].outputName;
 
             nvalues = readNextBlock(outputName);
             countInBlock = 0;
@@ -253,22 +281,42 @@ namespace Galacticus {
             // => read next datablocks (for next output number)
             //cout << "Read next datablock!" << endl;
 
-            if (numOutputs == 1) {
-                // we are done already
-                return 0;
-            }
-
-            // increase iteratoru over output-metadata (names)
-            it_outputmap++;
-
             // check if we are at the end
-            if (it_outputmap == outputMetaMap.end()) {
+            //if (it_outputmap == outputMetaMap.end() || countSnap == user_snapnums.size()) {
+            //    return 0;
+            //}
+            if (countSnap == numOutputs-1) {
                 return 0;
             }
 
             // if we end up here, we should read the next block
-            current_snapnum = it_outputmap->first;
-            outputName = (it_outputmap->second).outputName;
+            if (user_snapnums.size() > 0) {
+                countSnap++;
+                current_snapnum = user_snapnums[countSnap];
+                // check, if this snapnum really exists in outputMetaMap
+
+                it_outputmap = outputMetaMap.find(current_snapnum);
+                while (it_outputmap == outputMetaMap.end() && countSnap < numOutputs) {
+                    cout << "Skipping snapnum " << current_snapnum << " because no corresponding output-group was found." << endl;
+                    countSnap++;
+                    current_snapnum = user_snapnums[countSnap];
+                    it_outputmap = outputMetaMap.find(current_snapnum);
+                }
+                if (it_outputmap == outputMetaMap.end()) {
+                    return 0;
+                }
+                outputName = (it_outputmap->second).outputName;
+            } else {
+                it_outputmap++;
+                current_snapnum = it_outputmap->first;
+                outputName = (it_outputmap->second).outputName;
+            }
+
+            // get corresponding output name -- already done
+            // outputName = outputMetaMap[current_snapnum].outputName;
+
+
+
             nvalues = readNextBlock(outputName);
             countInBlock = 0;
 
@@ -634,7 +682,20 @@ namespace Galacticus {
             return isNull;
         }
 
+
+        if (thisItem->getDataObjName().compare("dbId") == 0) {
+            *(long*)(result) = (fileNum * snapnumfactor + current_snapnum) * rowfactor + countInBlock;
+            return isNull;
+        }
+
+
         if (thisItem->getDataObjName().compare("forestId") == 0) {
+            *(long*) result = 0;
+            isNull = true;
+            return isNull;
+        }
+
+        if (thisItem->getDataObjName().compare("depthFirstId") == 0) {
             *(long*) result = 0;
             isNull = true;
             return isNull;

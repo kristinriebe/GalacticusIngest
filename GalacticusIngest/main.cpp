@@ -44,7 +44,7 @@ int main (int argc, const char * argv[])
     string dataFile;
     string mapFile;
     int snapnum;
-    int user_snapnum;
+    vector<int> user_snapnums;
     int ngrid;
     int fileNum;
     
@@ -120,7 +120,9 @@ int main (int argc, const char * argv[])
                 ("fileNum", po::value<int>(&fileNum)->default_value(0), "number of the data file; possible prefix (e.g. dirNum*1000) could indicate the file directory number")
 //                ("startRow,i", po::value<int32_t>(&startRow)->default_value(0), "start reading at this initial row number (default 0)")
 //                ("maxRows,m", po::value<int32_t>(&maxRows)->default_value(-1), "max. number of rows to be read (default -1 for all rows)")
-                ("snapnum", po::value<int32_t>(&user_snapnum)->default_value(-1), "only read data for given snaphot number? [default: -1]")
+//                ("snapnum", po::value<int32_t>(&user_snapnum)->default_value(-1), "only read data for given snaphot number? [default: -1 = read all]")
+//                ("output", po::value<int32_t>(&user_output)->default_value(-1), "only read data for given snaphot number? [default: -1]")
+                ("snapnums", po::value<vector<int32_t> >(&user_snapnums)->multitoken(), "read data for given snaphot numbers? [default: read all available snapnums]")
                 ("resumeMode,R", po::value<bool>(&resumeMode)->default_value(0), "try to resume ingest on failed connection (turns off transactions)? [default: 0]")
                 ("validateSchema,v", po::value<bool>(&askUserToValidateRead)->default_value(1), "ask user to validate the schema mapping [default: 1]")
                 ;
@@ -138,7 +140,7 @@ int main (int argc, const char * argv[])
     // --> only compiles at erebos if I include the (char **) cast
     po::notify(varMap);
     
-    if(varMap.count("help") || varMap.count("?") || dataFile.length() == 0) {
+    if (varMap.count("help") || varMap.count("?") || dataFile.length() == 0) {
         cout << progDesc;
         return EXIT_SUCCESS;
     }
@@ -152,20 +154,32 @@ int main (int argc, const char * argv[])
     cout << "Table name: " << table << endl;
     cout << "Socket: " << socket << endl;
     cout << "User: " << user << endl;
-    if(pwd.compare("") == 0) {
+    if (pwd.compare("") == 0) {
         cout << "Password not given" << endl;
     } else {
         cout << "Password given" << endl;
     }
     cout << "Port: " << port << endl;
     cout << "Host: " << host << endl;
-    cout << "Path: " << path << endl << endl;
+    if (path != "") {
+        cout << "Path: " << path << endl;
+    }
+    if (user_snapnums.size() > 0) {
+        cout << "Snapnums: ";
+        for (int i=0; i<user_snapnums.size(); i++) {
+            cout << " " << user_snapnums[i];
+        }
+        cout << endl;
+    }
+
+    cout << endl;
+
    
     DBAsserter::AsserterFactory * assertFac = new DBAsserter::AsserterFactory;
     DBConverter::ConverterFactory * convFac = new DBConverter::ConverterFactory;
 
     //now setup the file reader
-    GalacticusReader *thisReader = new GalacticusReader(dataFile, fileNum, user_snapnum);
+    GalacticusReader *thisReader = new GalacticusReader(dataFile, fileNum, user_snapnums);
     dbServer = adaptorFac.getDBAdaptors(system);
 
     //vector<string> dataSetNames;

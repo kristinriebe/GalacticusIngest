@@ -87,6 +87,9 @@ namespace Galacticus {
         long numDataSets; // number of DataSets (= row fields, = columns) in each output
         long nvalues; // values in one dataset (assume the same number for each dataset of the same output group (redshift))
 
+        long snapnumfactor;
+        long rowfactor;
+
         vector<string> dataSetNames;
         map<string,int> dataSetMap;
 
@@ -99,10 +102,10 @@ namespace Galacticus {
 
         long currRow;
         long countInBlock;
+        int countSnap;
        
-        //fields to be generated/converted/...
         int current_snapnum;
-        int user_snapnum;
+        vector<int> user_snapnums;
         long NInFileSnapnum;
         double scale;
 
@@ -113,14 +116,13 @@ namespace Galacticus {
         int iz;
         long phkey;
         
-          
         // define something to hold all datasets from one read block 
         // (one complete Output* block or a part of it)
         vector<DataBlock> datablocks;
 
     public:
         GalacticusReader();
-        GalacticusReader(string newFileName, int fileNum, int newSnapnum);
+        GalacticusReader(string newFileName, int fileNum, vector<int> newSnapnums);
         ~GalacticusReader();
 
         void openFile(string newFileName);
