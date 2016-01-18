@@ -1,7 +1,5 @@
 GalacticusIngest
-===============
-
-**NOTE: Still alpha/beta version, there's no guarantee at all that it works!**
+================
 
 This code uses the DBIngestor library (https://github.com/aipescience/DBIngestor) to ingest Galacticus catalogues into a database.
 
@@ -41,11 +39,30 @@ see INSTALL
 
 Example
 --------
-An example will be given at some point ...
+The *Example* directory contains:
+
+* *create_galacticus_test_mysql.sql*: example create table statement  
+* *galacticus_test.fieldmap*: example map file for mapping data file fields to database fields  
+* *galacticus_test_results.hdf5*, an example data file, extracted from a Galacticus HDF5 output. It contains only data for output numbers 70 - 79, corresponding to snapshot numbers 116 - 125  
+
+First a database and table must be created on your server (in the example, I use MySQL, adjust to your own needs). Then you can ingest the example data into the Galacticus_test table with a command line like this: 
+
+```
+build/GalacticusIngest.x  -s mysql -D TestDB -T Galacticus_test -U myusername -P mypassword -H 127.0.0.1 -O 3306 -f Example/galacticus_test.fieldmap  --fileNum=0 Example/galacticus_test_results.hdf5 --snapnums 116 117
+```
+
+Replace *myusername* and *mypassword* with your own credentials for your own database. 
+
+The important new options are:   
+
+`-f`: filename for field map  
+`--fileNum`: an integer as file number, for easier check if data was uploaded from all files and number of rows are correct  
+`--snapnums` [optional]: a list of snapshot numbers, for which data is to be inserted. Note that the mapping between snapshot numbers and output numbers is still hard-coded.  
 
 
 TODO
 -----
+* Read mapping between snapnums and output-numbers from file (remove hard-coded mapping)
 * Make mapping file optional, use internal names and datatypes as default
 * Read constant values as well (for phkeys)
 * Allow calculations on the fly (ix, iy, iz)

@@ -1,0 +1,18 @@
+DROP TABLE IF EXISTS `Galacticus_test`;
+CREATE TABLE `Galacticus_test` (
+snapnum SMALLINT NOT NULL,
+scale DOUBLE NOT NULL,
+NInFileSnapnum BIGINT NOT NULL,
+fileNum INTEGER NOT NULL,
+forestId BIGINT NULL, 
+phkey BIGINT NULL, 
+basicMass DOUBLE NOT NULL,
+diskMassGas DOUBLE NOT NULL,
+diskMassStellar DOUBLE NOT NULL,
+diskRadius DOUBLE  NOT NULL,
+x DOUBLE NOT NULL,
+y DOUBLE NOT NULL,
+z DOUBLE NOT NULL,
+totalLum_RGO_B_obs_dust DOUBLE NOT NULL,
+totalLum_SDSS_g_obs_dust DOUBLE NOT NULL
+) ENGINE=MyISAM;
