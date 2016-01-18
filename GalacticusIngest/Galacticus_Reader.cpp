@@ -106,6 +106,7 @@ namespace Galacticus {
             delete fp;
         }
 
+        // TODO: catch error, if file does not exist or not accessible? before using H5 lib?
         fp = new H5File(h5fileName, H5F_ACC_RDONLY); // allocates properly
         
         if (!fp) { 
@@ -308,14 +309,19 @@ namespace Galacticus {
                 outputName = (it_outputmap->second).outputName;
             } else {
                 it_outputmap++;
+
+                // check, if we haven't reached the end yet
+                if (it_outputmap == outputMetaMap.end()) {
+                    cout << "End of outputs group is reached." << endl;
+                    return 0;
+                }
+
                 current_snapnum = it_outputmap->first;
                 outputName = (it_outputmap->second).outputName;
             }
 
             // get corresponding output name -- already done
             // outputName = outputMetaMap[current_snapnum].outputName;
-
-
 
             nvalues = readNextBlock(outputName);
             countInBlock = 0;
@@ -327,16 +333,7 @@ namespace Galacticus {
         currRow++; // counts all rows
 
         // stop reading/ingesting, if mass is lower than threshold?
-        
-        // stop after reading maxRows, but only if it is not -1
-        // Note: Could this be accelerated? It's unnecessary most of the time,
-        // but now it is evaluated for each row ...
-//        if (maxRows != -1) {
-//            if (currRow-startRow > maxRows) {
-//                printf("Maximum number of rows to be ingested is reached (%d).\n", maxRows);
-//                return 0;
-//            }
-//        }
+        // stop after reading maxRows?
     
         return 1;
     }
