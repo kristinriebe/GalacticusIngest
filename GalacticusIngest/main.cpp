@@ -47,6 +47,8 @@ int main (int argc, const char * argv[])
     vector<int> user_snapnums;
     int ngrid;
     int fileNum;
+
+    float planckh;
     
     // allow to use only some part of the data file, 
     // i.e. specify offset and maximum number of rows:
@@ -118,6 +120,7 @@ int main (int argc, const char * argv[])
                 ("isDryRun", po::value<bool>(&isDryRun)->default_value(0), "should this run be carried out as a dry run (no data added to database)? [default: 0]")
 //                ("dirNum", po::value<int>(&dirNum)->default_value(0), "number of the directory containing fileNum data files) [default: 0]")
                 ("fileNum", po::value<int>(&fileNum)->default_value(0), "number of the data file; possible prefix (e.g. dirNum*1000) could indicate the file directory number")
+                ("planckh", po::value<float>(&planckh)->default_value(0.6777), "Planck's constant h for unit conversions [default: 0.6777]")
 //                ("startRow,i", po::value<int32_t>(&startRow)->default_value(0), "start reading at this initial row number (default 0)")
 //                ("maxRows,m", po::value<int32_t>(&maxRows)->default_value(-1), "max. number of rows to be read (default -1 for all rows)")
 //                ("snapnum", po::value<int32_t>(&user_snapnum)->default_value(-1), "only read data for given snaphot number? [default: -1 = read all]")
@@ -179,7 +182,7 @@ int main (int argc, const char * argv[])
     DBConverter::ConverterFactory * convFac = new DBConverter::ConverterFactory;
 
     //now setup the file reader
-    GalacticusReader *thisReader = new GalacticusReader(dataFile, fileNum, user_snapnums);
+    GalacticusReader *thisReader = new GalacticusReader(dataFile, fileNum, user_snapnums, planckh);
     dbServer = adaptorFac.getDBAdaptors(system);
 
     //vector<string> dataSetNames;

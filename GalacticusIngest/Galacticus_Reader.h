@@ -40,6 +40,8 @@ using namespace H5;
 extern "C" herr_t file_info(hid_t loc_id, const char *name, const H5L_info_t *linfo,
                                     void *opdata);
 
+// global: Planck's constant h, set by user or use default.
+
 namespace Galacticus {
     
     class OutputMeta {
@@ -90,6 +92,8 @@ namespace Galacticus {
         long snapnumfactor;
         long rowfactor;
 
+        float planckh;
+
         vector<string> dataSetNames;
         map<string,int> dataSetMap;
 
@@ -122,7 +126,7 @@ namespace Galacticus {
 
     public:
         GalacticusReader();
-        GalacticusReader(string newFileName, int fileNum, vector<int> newSnapnums);
+        GalacticusReader(string newFileName, int fileNum, vector<int> newSnapnums, float planckh);
         ~GalacticusReader();
 
         void openFile(string newFileName);

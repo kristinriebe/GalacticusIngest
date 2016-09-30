@@ -43,7 +43,7 @@ namespace Galacticus {
         currRow = 0;
     }
     
-    GalacticusReader::GalacticusReader(string newFileName, int newFileNum, vector<int> newSnapnums) {
+    GalacticusReader::GalacticusReader(string newFileName, int newFileNum, vector<int> newSnapnums, float newPlanckh) {
 
         user_snapnums = newSnapnums;
         fileName = newFileName;
@@ -55,6 +55,7 @@ namespace Galacticus {
         // no, just let the user provide a file number and take care of mapping
         // the (arbitrary) file/directory names to the number; mainly for internal use
         fileNum = newFileNum;
+        planckh = newPlanckh;
 
         fp = NULL;
 
@@ -65,7 +66,6 @@ namespace Galacticus {
         // factors for constructing dbId, could/should be read from user input, actually
         snapnumfactor = 1000;
         rowfactor = 1000000;
-
 
         //const H5std_string FILE_NAME( "SDS.h5" );
         openFile(newFileName);
@@ -139,7 +139,7 @@ namespace Galacticus {
         } else if (ioutput >= 5 && ioutput <= 79) {
             snapnum = ioutput + 46;
         } else {
-            printf("ERROR: No matching snapshot number for output %ld available.\n", ioutput);
+            printf("ERROR in GalacticusReader: No matching snapshot number for output %ld available.\n", ioutput);
             exit(0);
         }
 
@@ -356,7 +356,7 @@ namespace Galacticus {
         startTime = boost::posix_time::microsec_clock::universal_time();
 
         // first get names of all DataSets in nodeData group and their item size
-        cout << "outputName: " << outputName<< endl;
+        //cout << "outputName: " << outputName<< endl;
 
         Group group(fp->openGroup(outputName));
         // maybe check here that it worked?
@@ -623,14 +623,16 @@ namespace Galacticus {
     bool GalacticusReader::getDataItem(DBDataSchema::DataObjDesc * thisItem, void* result) {
 
         // check which DB column is requested and assign the corresponding data value,
+        // using the already read schema-map for mapping database and file fields;
         // variables are declared already in Galacticus_Reader.h
         // and the values were read in getNextRow()
+        // also apply any necessary unit conversion etc. here!
         bool isNull;
         //cout << " again2 ioutput: " << ioutput << endl;
         //NInFile = currRow-1;	// start counting rows with 0       
         
-        // go through all data items and assign the correct column numbers for the DB columns, 
-        // maybe depending on a read schema-file:
+        // go through all data items and assign the correct value from DB columns, 
+        // depending on a read schema-file:
         
         //cout << "dataobjname: " << thisItem->getDataObjName() << endl;
 
@@ -638,24 +640,28 @@ namespace Galacticus {
 
         DataBlock b;
         string name;
+        //cout << "Get data item .... " << thisItem->getDataObjName() << endl;
 
-        // quickly access the correct data block by name (should have redshift removed already),
-        // but make sure that key really exists in the map
-        map<string,int>::iterator it = dataSetMap.find(thisItem->getDataObjName());
-        if (it != dataSetMap.end()) {
-            b = datablocks[it->second];
-            if (b.longval) {
-                *(long*)(result) = b.longval[countInBlock];
-                return isNull;
-            } else if (b.doubleval) {
-                *(double*)(result) = b.doubleval[countInBlock];
-                return isNull;
-            } else {
-                cout << "Error: No corresponding data found!" << " (" << thisItem->getDataObjName() << ")" << endl;
-                abort();
-            }
-        }
-            
+        // Here I should apply any necessary unit conversion.
+        // But this will make the upload slower ...
+        double scale;
+        scale = outputMetaMap[current_snapnum].outputExpansionFactor;
+        long satelliteNodeIndex;
+        long nodeIndex;
+        long parentIndex;
+        int satelliteStatus;
+        long rockstarId;
+        long MainHaloId;
+        double HaloMass;
+        double basicMass;
+        double satelliteBoundMass;
+        double SFRdisk;
+        double SFRspheroid;
+        map<string,int>::iterator it;
+        double x,y,z;
+
+        // deal with the dataItems which need special treatment or are not stored in map
+
         // get snapshot number and expansion factor from already read metadata 
         // for this output
         if (thisItem->getDataObjName().compare("snapnum") == 0) {
@@ -664,13 +670,17 @@ namespace Galacticus {
         }
 
         if (thisItem->getDataObjName().compare("scale") == 0) {
-            *(double*)(result) = outputMetaMap[current_snapnum].outputExpansionFactor;
+            *(double*)(result) = scale;
+            return isNull;
+        }
+
+        if (thisItem->getDataObjName().compare("redshift") == 0) {
+            *(double*)(result) = 1./scale - 1.;
             return isNull;
         }
 
         if (thisItem->getDataObjName().compare("NInFileSnapnum") == 0) {
             *(long*)(result) = countInBlock;
-            //result = (void *) countInBlock;
             return isNull;
         }
 
@@ -679,12 +689,10 @@ namespace Galacticus {
             return isNull;
         }
 
-
         if (thisItem->getDataObjName().compare("dbId") == 0) {
             *(long*)(result) = (fileNum * snapnumfactor + current_snapnum) * rowfactor + countInBlock;
             return isNull;
         }
-
 
         if (thisItem->getDataObjName().compare("forestId") == 0) {
             *(long*) result = 0;
@@ -699,33 +707,255 @@ namespace Galacticus {
         }
 
         if (thisItem->getDataObjName().compare("rockstarId") == 0) {
-            map<string,int>::iterator it2 = dataSetMap.find("satelliteNodeIndex");
-            if (it2 != dataSetMap.end()) {
-                b = datablocks[it2->second];
+            // first get satelliteNodeIndex, nodeIndex and satelliteStatus, 
+            // then assign correctly
+            it = dataSetMap.find("satelliteNodeIndex");
+            if (it != dataSetMap.end()) {
+                b = datablocks[it->second];
                 if (b.longval) {
-                    *(long*)(result) = b.longval[countInBlock];
-                    return isNull;
+                    satelliteNodeIndex = b.longval[countInBlock];
                 }
             } else {
                 cout << "Error: No corresponding data found!" << " (satelliteNodeIndex)" << endl;
                 abort();
             }
+
+            it = dataSetMap.find("satelliteStatus");
+            if (it != dataSetMap.end()) {
+                b = datablocks[it->second];
+                if (b.longval) {
+                    satelliteStatus = b.longval[countInBlock];
+                }
+            } else {
+                cout << "Error: No corresponding data found!" << " (satelliteStatus)" << endl;
+                abort();
+            }
+
+            it = dataSetMap.find("nodeIndex");
+            if (it != dataSetMap.end()) {
+                b = datablocks[it->second];
+                if (b.longval) {
+                    nodeIndex = b.longval[countInBlock];
+                }
+            } else {
+                cout << "Error: No corresponding data found!" << " (nodeIndex)" << endl;
+                abort();
+            }
+
+            if (satelliteStatus == 0) {
+                rockstarId = nodeIndex;
+            } else {
+                rockstarId = satelliteNodeIndex;
+            }
+
+            *(long*) result = rockstarId;
+            return isNull;
         }
 
+        if (thisItem->getDataObjName().compare("HostHaloId") == 0) {
+            // first get satelliteNodeIndex, nodeIndex and satelliteStatus, 
+            // then assign correctly
+            it = dataSetMap.find("satelliteNodeIndex");
+            if (it != dataSetMap.end()) {
+                b = datablocks[it->second];
+                if (b.longval) {
+                    satelliteNodeIndex = b.longval[countInBlock];
+                }
+            } else {
+                cout << "Error: No corresponding data found!" << " (satelliteNodeIndex)" << endl;
+                abort();
+            }
+
+            it = dataSetMap.find("satelliteStatus");
+            if (it != dataSetMap.end()) {
+                b = datablocks[it->second];
+                if (b.longval) {
+                    satelliteStatus = b.longval[countInBlock];
+                }
+            } else {
+                cout << "Error: No corresponding data found!" << " (satelliteStatus)" << endl;
+                abort();
+            }
+
+            it = dataSetMap.find("nodeIndex");
+            if (it != dataSetMap.end()) {
+                b = datablocks[it->second];
+                if (b.longval) {
+                    nodeIndex = b.longval[countInBlock];
+                }
+            } else {
+                cout << "Error: No corresponding data found!" << " (nodeIndex)" << endl;
+                abort();
+            }
+
+            if (satelliteStatus == 0) {
+                rockstarId = nodeIndex;
+            } else {
+                rockstarId = satelliteNodeIndex;
+            }
+
+            *(long*) result = rockstarId;
+            return isNull;
+        }
+
+        if (thisItem->getDataObjName().compare("MainHaloId") == 0) {
+            // first get satelliteNodeIndex, nodeIndex and satelliteStatus, 
+            // then assign correctly
+            it = dataSetMap.find("parentIndex");
+            if (it != dataSetMap.end()) {
+                b = datablocks[it->second];
+                if (b.longval) {
+                    parentIndex = b.longval[countInBlock];
+                }
+            } else {
+                cout << "Error: No corresponding data found!" << " (parentIndex)" << endl;
+                abort();
+            }
+
+            it = dataSetMap.find("satelliteStatus");
+            if (it != dataSetMap.end()) {
+                b = datablocks[it->second];
+                if (b.longval) {
+                    satelliteStatus = b.longval[countInBlock];
+                }
+            } else {
+                cout << "Error: No corresponding data found!" << " (satelliteStatus)" << endl;
+                abort();
+            }
+
+            it = dataSetMap.find("nodeIndex");
+            if (it != dataSetMap.end()) {
+                b = datablocks[it->second];
+                if (b.longval) {
+                    nodeIndex = b.longval[countInBlock];
+                }
+            } else {
+                cout << "Error: No corresponding data found!" << " (nodeIndex)" << endl;
+                abort();
+            }
+
+            if (satelliteStatus == 0) {
+                MainHaloId = nodeIndex;
+            } else {
+                MainHaloId = parentIndex;
+            }
+
+            *(long*) result = MainHaloId;
+            return isNull;
+        }
+
+        if (thisItem->getDataObjName().compare("HaloMass") == 0) {
+            // first get satelliteBoundMass, basicMass, 
+            // then assign correctly: if sat.Mass == 0, then use basicMass, otherwise sat.Mass
+
+            it = dataSetMap.find("basicMass");
+            if (it != dataSetMap.end()) {
+                b = datablocks[it->second];
+                if (b.doubleval) {
+                    basicMass = b.doubleval[countInBlock];
+                }
+            } else {
+                cout << "Error: No corresponding data found!" << " (basicMass)" << endl;
+                abort();
+            }
+
+            it = dataSetMap.find("satelliteBoundMass");
+            if (it != dataSetMap.end()) {
+                b = datablocks[it->second];
+                if (b.doubleval) {
+                    satelliteBoundMass = b.doubleval[countInBlock];
+                }
+            } else {
+                cout << "Error: No corresponding data found!" << " (satelliteBoundMass)" << endl;
+                abort();
+            }
+
+            if (satelliteBoundMass != 0) {
+                HaloMass = satelliteBoundMass;
+            } else {
+                HaloMass = basicMass;
+            }
+
+            *(double*) result = HaloMass*planckh;
+            return isNull;
+        }
+
+        if (thisItem->getDataObjName().compare("SFR") == 0) {
+            // first get disk- and spheroid SFR, then add
+
+            it = dataSetMap.find("spheroidStarFormationRate");
+            if (it != dataSetMap.end()) {
+                b = datablocks[it->second];
+                if (b.doubleval) {
+                    SFRspheroid = b.doubleval[countInBlock];
+                }
+            } else {
+                cout << "Error: No corresponding data found!" << " (spheroidStarFormationRate)" << endl;
+                abort();
+            }
+            it = dataSetMap.find("diskStarFormationRate");
+            if (it != dataSetMap.end()) {
+                b = datablocks[it->second];
+                if (b.doubleval) {
+                    SFRdisk = b.doubleval[countInBlock];
+                }
+            } else {
+                cout << "Error: No corresponding data found!" << " (diskStarFormationRate)" << endl;
+                abort();
+            }
+
+            *(double*) result = (SFRdisk + SFRspheroid) * planckh;
+            return isNull;
+        }
+
+
         if (thisItem->getDataObjName().compare("ix") == 0) {
-            *(int*) result = 0;
+            it = dataSetMap.find("positionPositionX");
+            if (it != dataSetMap.end()) {
+                b = datablocks[it->second];
+                if (b.doubleval) {
+                    x = b.doubleval[countInBlock];
+                }
+            } else {
+                cout << "Error: No corresponding data found!" << " (positionPositionX)" << endl;
+                abort();
+            }
+
+            *(int*) result = (int) (x*planckh/scale * (1024/1000.) );
             isNull = true;
             return isNull;
         }
 
         if (thisItem->getDataObjName().compare("iy") == 0) {
-            *(int*) result = 0;
+            it = dataSetMap.find("positionPositionY");
+            if (it != dataSetMap.end()) {
+                b = datablocks[it->second];
+                if (b.doubleval) {
+                    y = b.doubleval[countInBlock];
+                }
+            } else {
+                cout << "Error: No corresponding data found!" << " (positionPositionY)" << endl;
+                abort();
+            }
+
+            *(int*) result = (int) (y*planckh/scale * (1024/1000.) );
             isNull = true;
             return isNull;
         }
 
         if (thisItem->getDataObjName().compare("iz") == 0) {
-            *(int*) result = 0;
+            it = dataSetMap.find("positionPositionZ");
+            if (it != dataSetMap.end()) {
+                b = datablocks[it->second];
+                if (b.doubleval) {
+                    z = b.doubleval[countInBlock];
+                }
+            } else {
+                cout << "Error: No corresponding data found!" << " (positionPositionZ)" << endl;
+                abort();
+            }
+
+            *(int*) result = (int) (z*planckh/scale * (1024/1000.) );
             isNull = true;
             return isNull;
         }
@@ -742,7 +972,52 @@ namespace Galacticus {
         // were assigned!  => i.e. would need to check in generated schema
         // that it is in correct order!
 
-        // if we still did not return ...
+
+        // quickly access the correct data block by name (should have redshift removed already),
+        // but make sure that key really exists in the map
+        // should do this at the end => only for those datasets that got no special treatment!
+        isNull = false;
+        it = dataSetMap.find(thisItem->getDataObjName());
+        if (it != dataSetMap.end()) {
+            b = datablocks[it->second];
+            if (b.longval) {
+                *(long*)(result) = b.longval[countInBlock];
+                return isNull;
+            } else if (b.doubleval) {
+                *(double*)(result) = b.doubleval[countInBlock];
+
+                // apply unit conversion for the necessary parts:
+                if (thisItem->getDataObjName().compare("blackHoleMass") == 0
+                    || thisItem->getDataObjName().compare("basicMass") == 0
+                    || thisItem->getDataObjName().compare("diskMassGas") == 0
+                    || thisItem->getDataObjName().compare("diskMassStellar") == 0
+                    || thisItem->getDataObjName().compare("diskStarFormationRate") == 0
+                    || thisItem->getDataObjName().compare("hotHaloMass") == 0
+                   // || thisItem->getDataObjName().compare("satelliteBoundMass") == 0 => already covered above at HaloMass
+                    || thisItem->getDataObjName().compare("spheroidMassGas") == 0
+                    || thisItem->getDataObjName().compare("spheroidMassStellar") == 0
+                    || thisItem->getDataObjName().compare("spheroidStarFormationRate") == 0
+                   ) {
+                    *(double*)(result) = b.doubleval[countInBlock] * planckh;
+                }
+                if (thisItem->getDataObjName().compare("diskRadius") == 0
+                    || thisItem->getDataObjName().compare("hotHaloOuterRadius") == 0
+                    || thisItem->getDataObjName().compare("positionPositionX") == 0
+                    || thisItem->getDataObjName().compare("positionPositionY") == 0
+                    || thisItem->getDataObjName().compare("positionPositionZ") == 0
+                    || thisItem->getDataObjName().compare("spheroidRadius") == 0
+                   ) {
+                    *(double*)(result) = b.doubleval[countInBlock] * planckh/scale;
+                }
+                return isNull;
+
+            } else {
+                cout << "Error: No corresponding data found!" << " (" << thisItem->getDataObjName() << ")" << endl;
+                abort();
+            }
+        }
+
+        // if we still did not return until now ...
         fflush(stdout);
         fflush(stderr);
         printf("\nERROR: Something went wrong... (no dataItem for schemaItem %s found)\n", thisItem->getDataObjName().c_str());

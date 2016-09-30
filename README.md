@@ -57,7 +57,7 @@ The important new options are:
 
 `-f`: filename for field map  
 `--fileNum`: an integer as file number, for easier check if data was uploaded from all files and number of rows are correct  
-`--snapnums` [optional]: a list of snapshot numbers, for which data is to be inserted. Note that the mapping between snapshot numbers and output numbers is still hard-coded.  
+`--snapnums` [optional]: a list of snapshot numbers, for which data is to be inserted. the list is separated by whitespace, so please do not put it before the data file (positional argument), but rather at the end, as given in the example above. Note that the mapping between snapshot numbers and output numbers is still hard-coded for now.  
 
 
 TODO

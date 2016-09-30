@@ -46,7 +46,10 @@ file(GLOB FILES_SRC "${AIDIR}/*.h" "${AIDIR}/*.cpp")
 
 #MESSAGE(STATUS "Dir: " ${DIDIR})
 
-SET(Boost_USE_MULTITHREAD ON)
+#SET(Boost_USE_MULTITHREAD ON)
+# because cmake for boost fails on erebos, rather switch it off here or 
+# with command line: cmake -DBoost_NO_BOOST_CMAKE=TRUE ..
+SET(Boost_NO_BOOST_CMAKE TRUE)
 find_package (Boost COMPONENTS program_options filesystem system regex chrono serialization REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 #message("BOOST Include dirs: ${Boost_INCLUDE_DIRS}")

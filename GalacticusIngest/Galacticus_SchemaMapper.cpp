@@ -65,14 +65,13 @@ namespace Galacticus {
         // or get fieldnames from Galacticus-Reader?
         //get_datafileFieldNames;
 
-        // read (column) mapper for fields from dataFile to fields in database,
-        // assume the same types for now
+        // read (column) mapper for fields from dataFile to fields in database
         // assume simple ascii file:
         // 1. column = name in dataFile
-        // 2. column = name of field in database table
-        // automatic type assignment based on type in data file in SchemaMapper
-        // (so must make sure beforehand that database table has correct types for its fields)
-
+        // 2. column = data type in dataFile
+        // 3. column = name of field in database table
+        // 4. column = data type in database
+ 
         string fileName;
         ifstream fileStream;
         string line;
@@ -82,7 +81,6 @@ namespace Galacticus {
         
         DataField dataField;
         
-        //fileName = string("testdata.fieldmap");
         fileStream.open(mapFile.c_str(), ios::in);
         
         if (!fileStream) {
@@ -107,9 +105,10 @@ namespace Galacticus {
 
                 dataField.name = "";
                 dataField.type = "";
-
+                ss.str("");
                 ss.clear();
                 ss << line;
+                
                 ss >> name;
                 ss >> type;
 
@@ -118,6 +117,9 @@ namespace Galacticus {
                 dataField.type = type.c_str();
                 datafileFields.push_back(dataField);
 
+                name.clear();
+                type.clear();
+
                 ss >> name;
                 ss >> type;
                 //cout << "name, type (db): '" << name << "', '" << type << "'" << endl;
@@ -125,6 +127,13 @@ namespace Galacticus {
                 dataField.name = name.c_str();
                 dataField.type = type.c_str();
                 databaseFields.push_back(dataField);
+
+                // ignore whatever else may be there after the fields and types are read
+                ss.str("");
+                ss.clear();
+                line.clear();
+                name.clear();
+                type.clear();
 
             }
 
