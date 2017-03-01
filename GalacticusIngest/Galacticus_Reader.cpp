@@ -908,6 +908,82 @@ namespace Galacticus {
             return isNull;
         }
 
+        /* Multiply Abundance* columns with h, since it is not the mass fraction, but masses */
+        if (thisItem->getDataObjName().compare("MZgasDisk") == 0) {
+            it = dataSetMap.find("diskAbundancesGasMetals");
+            if (it != dataSetMap.end()) {
+                b = datablocks[it->second];
+                if (b.doubleval) {
+                    abundance = b.doubleval[countInBlock];
+                }
+            } else {
+                cout << "Error: No corresponding data found!" << " (diskAbundancesGasMetals)" << endl;
+                abort();
+            }
+            *(double*) result = abundance * planckh;
+            return isNull;
+        }
+
+        if (thisItem->getDataObjName().compare("MZstarDisk") == 0) {
+            it = dataSetMap.find("diskAbundancesStellarMetals");
+            if (it != dataSetMap.end()) {
+                b = datablocks[it->second];
+                if (b.doubleval) {
+                    abundance = b.doubleval[countInBlock];
+                }
+            } else {
+                cout << "Error: No corresponding data found!" << " (diskAbundancesStellarMetals)" << endl;
+                abort();
+            }
+            *(double*) result = abundance * planckh;
+            return isNull;
+        }
+
+        if (thisItem->getDataObjName().compare("MZhotHalo") == 0) {
+            it = dataSetMap.find("hotHaloAbundancesMetals");
+            if (it != dataSetMap.end()) {
+                b = datablocks[it->second];
+                if (b.doubleval) {
+                    abundance = b.doubleval[countInBlock];
+                }
+            } else {
+                cout << "Error: No corresponding data found!" << " (hotHaloAbundancesMetals)" << endl;
+                abort();
+            }
+            *(double*) result = abundance * planckh;
+            return isNull;
+        }
+
+        if (thisItem->getDataObjName().compare("MZgasSpheroid") == 0) {
+            it = dataSetMap.find("spheroidAbundancesGasMetals");
+            if (it != dataSetMap.end()) {
+                b = datablocks[it->second];
+                if (b.doubleval) {
+                    abundance = b.doubleval[countInBlock];
+                }
+            } else {
+                cout << "Error: No corresponding data found!" << " (spheroidAbundancesGasMetals)" << endl;
+                abort();
+            }
+            *(double*) result = abundance * planckh;
+            return isNull;
+        }
+
+        if (thisItem->getDataObjName().compare("MZstarSpheroid") == 0) {
+            it = dataSetMap.find("spheroidAbundancesStellarMetals");
+            if (it != dataSetMap.end()) {
+                b = datablocks[it->second];
+                if (b.doubleval) {
+                    abundance = b.doubleval[countInBlock];
+                }
+            } else {
+                cout << "Error: No corresponding data found!" << " (spheroidAbundancesStellarMetals)" << endl;
+                abort();
+            }
+            *(double*) result = abundance * planckh;
+            return isNull;
+        }
+
 
         if (thisItem->getDataObjName().compare("ix") == 0) {
             it = dataSetMap.find("positionPositionX");

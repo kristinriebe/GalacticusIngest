@@ -8,12 +8,11 @@ forestId				INT8		forestId		BIGINT
 phkey					INT8		phkey			BIGINT
 
 # original Galacticus columns, just a few example data sets
-basicMass 				REAL8		basicMass 		DOUBLE
-diskMassGas 			REAL8	 	diskMassGas 	DOUBLE
-diskMassStellar 		REAL8	 	diskMassStellar DOUBLE
-diskRadius 				REAL8	 	diskRadius 		DOUBLE
+basicMass 				REAL8		Mvir_SAM 		DOUBLE
+diskMassGas 			REAL8	 	McoldDisk 		DOUBLE
+diskMassStellar 		REAL8	 	MstarDisk 		DOUBLE
+diskRadius 				REAL8	 	Rdisk		 	DOUBLE
 positionPositionX 		REAL8	 	x 				DOUBLE
 positionPositionY 		REAL8	 	y 				DOUBLE
 positionPositionZ 		REAL8	 	z 				DOUBLE
-totalLuminositiesStellar:RGO_B:observed:dustAtlas 	REAL8	 totalLum_RGO_B_obs_dust 	DOUBLE
-totalLuminositiesStellar:SDSS_g:observed:dustAtlas 	REAL8	 totalLum_SDSS_g_obs_dust 	DOUBLE
+totalLuminositiesStellar:SDSS_g:observed:dustAtlas 	REAL8	 LstarSDSSg		DOUBLE
