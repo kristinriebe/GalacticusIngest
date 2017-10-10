@@ -5,12 +5,15 @@ set(AIDIR "${PROJECT_SOURCE_DIR}/GalacticusIngest")
 
 ## Set compiler
 # using following start of the command line for creating Makefile:
-#CC=gcc-4.9 CXX=g++-4.9 cmake#
+##CC=gcc-4.9 CXX=g++-4.9 cmake
 
 # set compiler here somewhere???
 #CMAKE_CXX_COMPILER=g++-4.9
+#CMAKE_CXX_COMPILER=h5c++
 #CMAKE_C_COMPILER=gcc-4.9
 # => no effects.
+set(CMAKE_CXX_COMPILER "h5c++")
+#set(CMAKE_CXX_COMPILER "/usr/bin/g++")
 
 ############################################################################
 ## SET THIS TO THE MYSQL BASE PATH IF IT IS NOT AT A STANDARD PLACE

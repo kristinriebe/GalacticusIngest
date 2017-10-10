@@ -1,4 +1,4 @@
-/*  
+/*
  *  Copyright (c) 2015, Kristin Riebe <kriebe@aip.de>,
  *                      eScience team AIP Potsdam
  *

@@ -48,9 +48,9 @@ int main (int argc, const char * argv[])
     int ngrid;
     int fileNum;
 
-    float planckh;
-    
-    // allow to use only some part of the data file, 
+    float hubble_h;
+
+    // allow to use only some part of the data file,
     // i.e. specify offset and maximum number of rows:
     int startRow;
     int maxRows;
@@ -71,7 +71,7 @@ int main (int argc, const char * argv[])
     bool isDryRun = false;
     bool resumeMode;
     bool askUserToValidateRead = true; // can be overwritten by options below
-    
+
     DBServer::DBAbstractor * dbServer;
     DBIngest::DBIngestor * galacticusIngestor;
     DBServer::DBAdaptorsFactory adaptorFac;
@@ -79,15 +79,15 @@ int main (int argc, const char * argv[])
 
     //build database string
     string dbSystemDesc = "database system to use (";
-    
+
 #ifdef DB_SQLITE3
     dbSystemDesc.append("sqlite3, ");
 #endif
-    
+
 #ifdef DB_MYSQL
     dbSystemDesc.append("mysql, ");
 #endif
-    
+
 #ifdef DB_ODBC
     dbSystemDesc.append("unix_sqlsrv_odbc, ");
     dbSystemDesc.append("sqlsrv_odbc, ");
@@ -95,12 +95,12 @@ int main (int argc, const char * argv[])
     dbSystemDesc.append("cust_odbc, ");
     dbSystemDesc.append("cust_odbc_bulk, ");
 #endif
-    
+
     dbSystemDesc.append(") - [default: mysql]");
-    
-    
+
+
     po::options_description progDesc("GalacticusIngest - Ingest binary HDF5 Galacticus files into databases\n\nGalacticusIngest [OPTIONS] [dataFile]\n\nCommand line options:");
-        
+
     progDesc.add_options()
                 ("help,?", "output help")
                 ("data,d", po::value<string>(&dataFile), "datafile to ingest")
@@ -120,7 +120,7 @@ int main (int argc, const char * argv[])
                 ("isDryRun", po::value<bool>(&isDryRun)->default_value(0), "should this run be carried out as a dry run (no data added to database)? [default: 0]")
 //                ("dirNum", po::value<int>(&dirNum)->default_value(0), "number of the directory containing fileNum data files) [default: 0]")
                 ("fileNum", po::value<int>(&fileNum)->default_value(0), "number of the data file; possible prefix (e.g. dirNum*1000) could indicate the file directory number")
-                ("planckh", po::value<float>(&planckh)->default_value(0.6777), "Planck's constant h for unit conversions [default: 0.6777]")
+                ("hubble_h", po::value<float>(&hubble_h)->default_value(0.6777), "Hubble parameter h for unit conversions [default: 0.6777]")
 //                ("startRow,i", po::value<int32_t>(&startRow)->default_value(0), "start reading at this initial row number (default 0)")
 //                ("maxRows,m", po::value<int32_t>(&maxRows)->default_value(-1), "max. number of rows to be read (default -1 for all rows)")
 //                ("snapnum", po::value<int32_t>(&user_snapnum)->default_value(-1), "only read data for given snaphot number? [default: -1 = read all]")
@@ -142,12 +142,12 @@ int main (int argc, const char * argv[])
     po::store(po::command_line_parser(argc, (char **) argv).options(progDesc).positional(posDesc).run(), varMap);
     // --> only compiles at erebos if I include the (char **) cast
     po::notify(varMap);
-    
+
     if (varMap.count("help") || varMap.count("?") || dataFile.length() == 0) {
         cout << progDesc;
         return EXIT_SUCCESS;
     }
-    
+
     cout << "You have entered the following parameters:" << endl;
     cout << "Data file: " << dataFile << endl;
     cout << "DB system: " << system << endl;
@@ -177,12 +177,12 @@ int main (int argc, const char * argv[])
 
     cout << endl;
 
-   
+
     DBAsserter::AsserterFactory * assertFac = new DBAsserter::AsserterFactory;
     DBConverter::ConverterFactory * convFac = new DBConverter::ConverterFactory;
 
     //now setup the file reader
-    GalacticusReader *thisReader = new GalacticusReader(dataFile, fileNum, user_snapnums, planckh);
+    GalacticusReader *thisReader = new GalacticusReader(dataFile, fileNum, user_snapnums, hubble_h);
     dbServer = adaptorFac.getDBAdaptors(system);
 
     //vector<string> dataSetNames;
@@ -201,7 +201,7 @@ int main (int argc, const char * argv[])
         cout << "col name: " << thisSchema->getArrSchemaItems().at(j)->getColumnName() << endl;
     }
     */
-    
+
     galacticusIngestor = new DBIngest::DBIngestor(thisSchema, thisReader, dbServer);
     galacticusIngestor->setUsrName(user);
     galacticusIngestor->setPasswd(pwd);

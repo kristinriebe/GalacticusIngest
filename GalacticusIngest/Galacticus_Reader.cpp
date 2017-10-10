@@ -1,4 +1,4 @@
-/*  
+/*
  *  Copyright (c) 2015, Kristin Riebe <kriebe@aip.de>,
  *                      eScience team AIP Potsdam
  *
@@ -42,12 +42,12 @@ namespace Galacticus {
 
         currRow = 0;
     }
-    
-    GalacticusReader::GalacticusReader(string newFileName, int newFileNum, vector<int> newSnapnums, float newPlanckh) {
+
+    GalacticusReader::GalacticusReader(string newFileName, int newFileNum, vector<int> newSnapnums, float newHubble_h) {
 
         user_snapnums = newSnapnums;
         fileName = newFileName;
-        
+
         // strip path from file name
         //boost::filesystem::path p(fileName);
         //dataFileBaseName = p.filename().string(); // or use stem() for omitting extension
@@ -55,7 +55,7 @@ namespace Galacticus {
         // no, just let the user provide a file number and take care of mapping
         // the (arbitrary) file/directory names to the number; mainly for internal use
         fileNum = newFileNum;
-        planckh = newPlanckh;
+        hubble_h = newHubble_h;
 
         fp = NULL;
 
@@ -95,7 +95,7 @@ namespace Galacticus {
         closeFile();
         // delete data sets? i.e. call DataBlock::deleteData?
     }
-    
+
     void GalacticusReader::openFile(string newFileName) {
         // open file as hdf5-file
         H5std_string h5fileName;
@@ -108,13 +108,13 @@ namespace Galacticus {
 
         // TODO: catch error, if file does not exist or not accessible? before using H5 lib?
         fp = new H5File(h5fileName, H5F_ACC_RDONLY); // allocates properly
-        
-        if (!fp) { 
+
+        if (!fp) {
             GalacticusIngest_error("GalacticusReader: Error in opening file.\n");
         }
-        
+
     }
-    
+
     void GalacticusReader::closeFile() {
         if (fp) {
             fp->close();
@@ -334,7 +334,7 @@ namespace Galacticus {
 
         // stop reading/ingesting, if mass is lower than threshold?
         // stop after reading maxRows?
-    
+
         return 1;
     }
 
@@ -351,7 +351,7 @@ namespace Galacticus {
         boost::posix_time::ptime endTime;
         string newtext = "";
         boost::regex re(":z[0-9.]*");
-        
+
 
         startTime = boost::posix_time::microsec_clock::universal_time();
 
@@ -374,9 +374,9 @@ namespace Galacticus {
         string matchname;
         int numDataSets = dataSetNames.size();
         //cout << "numDataSets: " << numDataSets << endl;
-        
+
         // create a key-value map for the dataset names, do it from scratch for each block,
-        // and remove redshifts from the dataset names (where necessary)    
+        // and remove redshifts from the dataset names (where necessary)
         dataSetMap.clear();
         for (int k=0; k<numDataSets; k++) {
             dsname = dataSetNames[k];
@@ -424,7 +424,7 @@ namespace Galacticus {
         endTime = boost::posix_time::microsec_clock::universal_time();
         printf("Time for reading output %s (%ld rows): %lld ms\n", outputName.c_str(), nvalues, (long long int) (endTime-startTime).total_milliseconds());
         fflush(stdout);
-            
+
         return nvalues; //assume that nvalues is the same for each dataset (datablock) inside one Output-group (same redshift)
     }
 
@@ -613,7 +613,7 @@ namespace Galacticus {
         //cout << " again ioutput: " << ioutput << endl;
         //check assertions
         //checkAssertions(thisItem, result);
-        
+
         //apply conversion
         //applyConversions(thisItem, result);
 
@@ -629,11 +629,11 @@ namespace Galacticus {
         // also apply any necessary unit conversion etc. here!
         bool isNull;
         //cout << " again2 ioutput: " << ioutput << endl;
-        //NInFile = currRow-1;	// start counting rows with 0       
-        
+        //NInFile = currRow-1;	// start counting rows with 0
+
         // go through all data items and assign the correct value from DB columns, 
         // depending on a read schema-file:
-        
+
         //cout << "dataobjname: " << thisItem->getDataObjName() << endl;
 
         isNull = false;
@@ -845,7 +845,7 @@ namespace Galacticus {
         }
 
         if (thisItem->getDataObjName().compare("HaloMass") == 0) {
-            // first get satelliteBoundMass, basicMass, 
+            // first get satelliteBoundMass, basicMass,
             // then assign correctly: if sat.Mass == 0, then use basicMass, otherwise sat.Mass
 
             it = dataSetMap.find("basicMass");
@@ -876,7 +876,7 @@ namespace Galacticus {
                 HaloMass = basicMass;
             }
 
-            *(double*) result = HaloMass*planckh;
+            *(double*) result = HaloMass*hubble_h;
             return isNull;
         }
 
@@ -904,7 +904,7 @@ namespace Galacticus {
                 abort();
             }
 
-            *(double*) result = (SFRdisk + SFRspheroid) * planckh;
+            *(double*) result = (SFRdisk + SFRspheroid) * hubble_h;
             return isNull;
         }
 
@@ -920,7 +920,7 @@ namespace Galacticus {
                 cout << "Error: No corresponding data found!" << " (diskAbundancesGasMetals)" << endl;
                 abort();
             }
-            *(double*) result = abundance * planckh;
+            *(double*) result = abundance * hubble_h;
             return isNull;
         }
 
@@ -935,7 +935,7 @@ namespace Galacticus {
                 cout << "Error: No corresponding data found!" << " (diskAbundancesStellarMetals)" << endl;
                 abort();
             }
-            *(double*) result = abundance * planckh;
+            *(double*) result = abundance * hubble_h;
             return isNull;
         }
 
@@ -950,7 +950,7 @@ namespace Galacticus {
                 cout << "Error: No corresponding data found!" << " (hotHaloAbundancesMetals)" << endl;
                 abort();
             }
-            *(double*) result = abundance * planckh;
+            *(double*) result = abundance * hubble_h;
             return isNull;
         }
 
@@ -965,7 +965,7 @@ namespace Galacticus {
                 cout << "Error: No corresponding data found!" << " (spheroidAbundancesGasMetals)" << endl;
                 abort();
             }
-            *(double*) result = abundance * planckh;
+            *(double*) result = abundance * hubble_h;
             return isNull;
         }
 
@@ -980,7 +980,7 @@ namespace Galacticus {
                 cout << "Error: No corresponding data found!" << " (spheroidAbundancesStellarMetals)" << endl;
                 abort();
             }
-            *(double*) result = abundance * planckh;
+            *(double*) result = abundance * hubble_h;
             return isNull;
         }
 
@@ -997,7 +997,7 @@ namespace Galacticus {
                 abort();
             }
 
-            *(int*) result = (int) (x*planckh/scale * (1024/1000.) );
+            *(int*) result = (int) (x*hubble_h/scale * (1024/1000.) );
             isNull = true;
             return isNull;
         }
@@ -1014,7 +1014,7 @@ namespace Galacticus {
                 abort();
             }
 
-            *(int*) result = (int) (y*planckh/scale * (1024/1000.) );
+            *(int*) result = (int) (y*hubble_h/scale * (1024/1000.) );
             isNull = true;
             return isNull;
         }
@@ -1031,7 +1031,7 @@ namespace Galacticus {
                 abort();
             }
 
-            *(int*) result = (int) (z*planckh/scale * (1024/1000.) );
+            *(int*) result = (int) (z*hubble_h/scale * (1024/1000.) );
             isNull = true;
             return isNull;
         }
@@ -1074,7 +1074,7 @@ namespace Galacticus {
                     || thisItem->getDataObjName().compare("spheroidMassStellar") == 0
                     || thisItem->getDataObjName().compare("spheroidStarFormationRate") == 0
                    ) {
-                    *(double*)(result) = b.doubleval[countInBlock] * planckh;
+                    *(double*)(result) = b.doubleval[countInBlock] * hubble_h;
                 }
                 if (thisItem->getDataObjName().compare("diskRadius") == 0
                     || thisItem->getDataObjName().compare("hotHaloOuterRadius") == 0
@@ -1083,7 +1083,7 @@ namespace Galacticus {
                     || thisItem->getDataObjName().compare("positionPositionZ") == 0
                     || thisItem->getDataObjName().compare("spheroidRadius") == 0
                    ) {
-                    *(double*)(result) = b.doubleval[countInBlock] * planckh/scale;
+                    *(double*)(result) = b.doubleval[countInBlock] * hubble_h/scale;
                 }
                 return isNull;
 

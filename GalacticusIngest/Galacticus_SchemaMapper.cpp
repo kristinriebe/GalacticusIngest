@@ -1,4 +1,4 @@
-/*  
+/*
  *  Copyright (c) 2015, Kristin Riebe <kriebe@aip.de>,
  *                      eScience team AIP Potsdam
  *
@@ -30,9 +30,9 @@ using namespace std;
 using namespace DBDataSchema;
 
 namespace Galacticus {
-    
+
     GalacticusSchemaMapper::GalacticusSchemaMapper() {
-        
+
     }
 
     GalacticusSchemaMapper::GalacticusSchemaMapper(DBAsserter::AsserterFactory * newAssertFac, DBConverter::ConverterFactory * newConvFac) {
@@ -41,7 +41,7 @@ namespace Galacticus {
     }
 
     GalacticusSchemaMapper::~GalacticusSchemaMapper() {
-        
+
     }
 
 
@@ -58,7 +58,7 @@ namespace Galacticus {
         name = newName;
         type = newType;
     }
-   
+
     void GalacticusSchemaMapper::readMappingFile(string mapFile) {
         // read file, store content
 
@@ -71,21 +71,21 @@ namespace Galacticus {
         // 2. column = data type in dataFile
         // 3. column = name of field in database table
         // 4. column = data type in database
- 
+
         string fileName;
         ifstream fileStream;
         string line;
         string name;
         string type;
         stringstream ss;
-        
+
         DataField dataField;
-        
+
         fileStream.open(mapFile.c_str(), ios::in);
-        
+
         if (!fileStream) {
             cout << "ERROR: Cannot open file '" << mapFile << "'. Maybe it does not exist?" << endl;
-            abort(); 
+            abort();
         }
 
         datafileFields.clear();
@@ -96,7 +96,7 @@ namespace Galacticus {
 
         while ( getline (fileStream, line) ){
             //cout << "line: " << line << ", schema size: " << line.size() << endl;
- 
+
             // skip empty lines and lines starting with #
             if (line.substr(0,1) != "#" && line.size() > 0) {
 
@@ -108,7 +108,7 @@ namespace Galacticus {
                 ss.str("");
                 ss.clear();
                 ss << line;
-                
+
                 ss >> name;
                 ss >> type;
 

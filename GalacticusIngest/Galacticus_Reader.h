@@ -1,4 +1,4 @@
-/*  
+/*
  *  Copyright (c) 2015, Kristin Riebe <kriebe@aip.de>,
  *                      eScience team AIP Potsdam
  *
@@ -40,10 +40,10 @@ using namespace H5;
 extern "C" herr_t file_info(hid_t loc_id, const char *name, const H5L_info_t *linfo,
                                     void *opdata);
 
-// global: Planck's constant h, set by user or use default.
+// global: Hubble parameter h, set by user or use default.
 
 namespace Galacticus {
-    
+
     class OutputMeta {
         public:
             int ioutput;
@@ -92,7 +92,7 @@ namespace Galacticus {
         long snapnumfactor;
         long rowfactor;
 
-        float planckh;
+        float hubble_h;
 
         vector<string> dataSetNames;
         map<string,int> dataSetMap;
@@ -119,14 +119,14 @@ namespace Galacticus {
         int iy;
         int iz;
         long phkey;
-        
-        // define something to hold all datasets from one read block 
+
+        // define something to hold all datasets from one read block
         // (one complete Output* block or a part of it)
         vector<DataBlock> datablocks;
 
     public:
         GalacticusReader();
-        GalacticusReader(string newFileName, int fileNum, vector<int> newSnapnums, float planckh);
+        GalacticusReader(string newFileName, int fileNum, vector<int> newSnapnums, float hubble_h);
         ~GalacticusReader();
 
         void openFile(string newFileName);
